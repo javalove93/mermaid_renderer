@@ -2,6 +2,8 @@
 
 Mermaid 다이어그램을 렌더링하고 공유할 수 있는 웹 애플리케이션입니다. Google의 Gemini AI를 활용하여 다이어그램 분석과 질문 응답이 가능합니다.
 
+Vibe Coding: Gemini Canvas와 Cursor + Gemini를 써서 만들었습니다.
+
 ## 주요 기능
 
 - Mermaid 다이어그램 실시간 렌더링
