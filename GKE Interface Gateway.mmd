@@ -1,0 +1,42 @@
+graph TD
+    subgraph Client_Area
+        A["사용자/클라이언트 요청"]
+        I["사용자/클라이언트 응답"]
+    end
+
+    subgraph GKE_Cluster
+        B["Ingress<br/>(선택 사항)"]
+        C["GKE Inference Gateway"]
+        L["Model Armor (선택 사항)<br/>- performs safety checks"]
+        G["Endpoint Picker (선택 사항)<br/>- Selects endpoint based on metrics<br/> - KV-Cache 인식<br/> - Queue length 관리<br/> - LoRA 어댑터 인식"]
+        D["Kubernetes Service"]
+        subgraph Inference_Pool
+            E["InferencePool CRD<br/>- Compute resources<br/>(GPU/TPU, replicas)"]
+            F["InferenceModel CRD(s)<br/>- Model(s) to serve<br/>- References InferencePool E"]
+            H["Model Server Pods<br/>- Part of InferencePool E"]
+        end
+
+        M["Custom Metrics Adapter (선택 사항)<br/>- Exposes custom metrics to k8s API"]
+        J["Monitoring System<br/>(Prometheus 등)<br/>- Scrapes metrics"]
+        N["Cloud Monitoring<br/>- Provides dashboards and alerts"]
+        K["Gateway API Resources (Gateway, HTTPRoute, etc.)<br/> - Configures Load Balancing"]
+    end
+
+    A -->|"Sends request to"| B
+    A -->|"Sends request directly to"| C
+    B -->|"Routes request to"| C
+    C -->|"Uses to configure Load Balancing"| K
+    C -->|"Uses to optimize routing decisions (optional)"| G
+    C -->|"Sends request to perform safety checks (optional)"| L
+    L -->|"Forwards request to"| H
+    G -->|"Selects target InferencePool"| E
+    C -->|"Routes request to"| D
+    D -->|"Forwards request to target InferencePool"| E
+    E -->|"Serves the models defined in"| F
+    F -->|"Specifies models to be loaded in"| H
+    H -->|"Exposes custom metrics to"| M
+    H -->|"Exposes metrics to"| J
+    M -->|"Provides custom metrics to"| J
+    J -->|"Sends metrics to"| N
+    J -->|"Provides metrics for Gateway decisions"| C
+    H -->|"Returns response to"| I

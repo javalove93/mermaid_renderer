@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid 렌더러</title>
+    <link href="/static/css/output.css" rel="stylesheet" type="text/css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <!-- CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/display/linenumbers.min.css">
+    <!-- CodeMirror JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/display/linenumbers.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/meta.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.js"></script>
+    <style>
+        /* Custom styles for better layout */
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            padding: 20px;
+            background-color: #f7f7f7;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 100%;
+            max-width: 100%;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            margin: 0 auto;
+        }
+        /* CodeMirror styling */
+        .CodeMirror {
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-height: 200px;
+            font-family: monospace;
+            height: auto;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+            font-weight: 500;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        #output {
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #eee;
+            overflow: auto;
+            resize: both;
+            min-height: 150px;
+            box-sizing: border-box;
+        }
+        #syntax-check-output {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #fff;
+            overflow-x: auto;
+        }
+        .hidden {
+            display: none;
+        }
+        .error-message {
+            color: red;
+            font-weight: bold;
+        }
+        .fix-button {
+            margin-top: 10px;
+            padding: 8px 15px;
+            background-color: #f97316;
+            color: white;
+            border: none;
+            border-radius: 44px;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .fix-button:hover {
+            background-color: #ea580c;
+        }
+        #output svg {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: auto;
+        }
+        .size-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .size-inputs input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .copy-button {
+            padding: 10px 20px;
+            background-color: #10b981;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .copy-button:hover {
+            background-color: #059669;
+        }
+        .action-button {
+            padding: 10px 20px;
+        }
+        /* 토큰 입력 영역 스타일 추가 */
+        .token-inputs-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .token-input-group {
+            flex: 1;
+            min-width: 300px; /* 최소 너비 설정 */
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .token-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .token-description {
+            font-size: 12px;
+            color: #666;
+        }
+        .token-warning {
+            font-size: 12px;
+            color: #dc2626;
+            margin-top: 4px;
+        }
+        .token-link {
+            font-size: 12px;
+            color: #2563eb;
+            text-decoration: none;
+            margin-bottom: 4px;
+        }
+        .token-link:hover {
+            text-decoration: underline;
+        }
+        /* 채팅 영역 스타일 */
+        .chat-container {
+            margin-top: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 16px;
+            background-color: #fff;
+        }
+        .chat-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #374151;
+        }
+        .chat-input-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .chat-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .chat-button {
+            padding: 8px 16px;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .chat-button:hover {
+            background-color: #2563eb;
+        }
+        .chat-button:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .chat-response {
+            margin-top: 12px;
+            padding: 12px;
+            background-color: #f3f4f6;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            display: none;
+        }
+        .chat-error {
+            color: #dc2626;
+            margin-top: 8px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-2xl font-bold text-center mb-4">Mermaid 다이어그램 렌더러</h1>
+
+        <div class="token-inputs-container">
+            <div class="token-input-group">
+                <label for="api-key" class="text-sm font-medium text-gray-700">Gemini API Key:</label>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="token-link">Get API Key here</a>
+                <input type="password" id="api-key" class="token-input" placeholder="여기에 Gemini API Key를 입력하세요">
+                <p class="token-warning">경고: API Key/Token을 브라우저 코드에 직접 넣는 것은 보안상 위험합니다. 테스트 목적으로만 사용하세요.</p>
+                <p class="token-description">사용 모델: Gemini 2.5 Flash (preview-04-17)</p>
+            </div>
+
+            <div class="token-input-group">
+                <label for="github-token" class="text-sm font-medium text-gray-700">GitHub Token (for Gist Saving):</label>
+                <a href="https://github.com/settings/tokens?type=beta" target="_blank" class="token-link">Generate Token (select 'gist' scope)</a>
+                <input type="password" id="github-token" class="token-input" placeholder="GitHub Personal Access Token (gist scope)">
+                <p class="token-warning">Gist 저장을 위해 필요합니다. 토큰은 서버로 전송됩니다.</p>
+            </div>
+        </div>
+
+        <div class="size-inputs">
+            <label for="output-width" class="text-sm font-medium text-gray-700">너비 (px):</label>
+            <input type="number" id="output-width" placeholder="자동">
+            <label for="output-height" class="text-sm font-medium text-gray-700">높이 (px):</label>
+            <input type="number" id="output-height" placeholder="자동">
+            <span class="text-xs text-gray-500">(입력 없으면 자동 크기)</span>
+        </div>
+
+
+        <textarea id="mermaid-input" placeholder="여기에 Mermaid 문법을 입력하세요 (예: graph TD; A-->B;)"></textarea>
+
+        <div class="flex gap-4 items-center">
+             <button id="check-syntax-button" class="action-button bg-blue-400 hover:bg-blue-600">문법 체크</button>
+             <button id="render-button" class="action-button bg-blue-600 hover:bg-blue-800 py-4 px-8">렌더링</button>
+             <button id="copy-button" class="action-button bg-blue-400 hover:bg-blue-600">내용 복사</button>
+             <button id="load-sample-button" class="action-button bg-blue-400 hover:bg-blue-600">샘플 로드</button>
+             <button id="save-gist-button" class="action-button bg-orange-500 hover:bg-orange-700">서버 저장 (Gist)</button>
+             <button id="save-image-button" class="action-button bg-green-500 hover:bg-green-700">이미지 저장</button>
+        </div>
+
+        <div id="syntax-check-output" class="border border-gray-300 rounded-md p-3 bg-yellow-100 text-sm hidden">
+            문법 체크 결과:
+        </div>
+
+        <div id="output">
+            렌더링 결과가 여기에 표시됩니다.
+        </div>
+
+        <div id="gist-link-output" class="border border-gray-300 rounded-md p-3 bg-gray-100 text-sm hidden mt-4">
+            Gist 링크: <a href="#" target="_blank" id="gist-link" class="text-blue-600 hover:underline"></a>
+            <span id="gist-error" class="text-red-600"></span>
+        </div>
+
+        <!-- 채팅 영역 추가 -->
+        <div class="chat-container">
+            <div class="chat-title">다이어그램에 대해 Gemini에게 질문하기</div>
+            <div class="chat-input-container">
+                <input type="text" id="chat-input" class="chat-input" placeholder="다이어그램에 대해 질문해보세요...">
+                <button id="chat-button" class="chat-button">질문하기</button>
+            </div>
+            <div id="chat-response" class="chat-response"></div>
+            <div id="chat-error" class="chat-error"></div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Mermaid - Moved inside DOMContentLoaded
+        // mermaid.initialize({ startOnLoad: false }); // Removed from here
+
+        const SYNTAX_CHECK_OUTPUT_ID = 'syntax-check-output';
+        const API_KEY_INPUT_ID = 'api-key';
+        const MERMAID_INPUT_ID = 'mermaid-input';
+        const OUTPUT_ID = 'output'; // Added ID for render output
+        const CHECK_SYNTAX_BUTTON_ID = 'check-syntax-button'; // ID for syntax check button
+        const RENDER_BUTTON_ID = 'render-button'; // ID for render button
+        const COPY_BUTTON_ID = 'copy-button'; // ID for copy button
+        const OUTPUT_WIDTH_INPUT_ID = 'output-width'; // ID for width input
+        const OUTPUT_HEIGHT_INPUT_ID = 'output-height'; // ID for height input
+        const LOAD_SAMPLE_BUTTON_ID = 'load-sample-button'; // ID for the new sample button
+        const SAVE_GIST_BUTTON_ID = 'save-gist-button';
+        const GIST_LINK_OUTPUT_ID = 'gist-link-output';
+        const GIST_LINK_ID = 'gist-link';
+        const GIST_ERROR_ID = 'gist-error';
+        const SAVE_IMAGE_BUTTON_ID = 'save-image-button';
+
+        let autoRenderTimeout = null; // Variable to hold the timeout ID
+        let mermaidEditor = null; // Variable to hold the CodeMirror instance
+
+        // Content of GKE Interface Gateway.mmd
+        const GKE_SAMPLE_CONTENT = `graph TD
+    subgraph Client_Area
+        A["사용자/클라이언트 요청"]
+        I["사용자/클라이언트 응답"]
+    end
+
+    subgraph GKE_Cluster
+        B["Ingress<br/>(선택 사항)"]
+        C["GKE Inference Gateway"]
+        L["Model Armor (선택 사항)<br/>- performs safety checks"]
+        G["Endpoint Picker (선택 사항)<br/>- Selects endpoint based on metrics<br/> - KV-Cache 인식<br/> - Queue length 관리<br/> - LoRA 어댑터 인식"]
+        D["Kubernetes Service"]
+        subgraph Inference_Pool
+            E["InferencePool CRD<br/>- Compute resources<br/>(GPU/TPU, replicas)"]
+            F["InferenceModel CRD(s)<br/>- Model(s) to serve<br/>- References InferencePool E"]
+            H["Model Server Pods<br/>- Part of InferencePool E"]
+        end
+
+        M["Custom Metrics Adapter (선택 사항)<br/>- Exposes custom metrics to k8s API"]
+        J["Monitoring System<br/>(Prometheus 등)<br/>- Scrapes metrics"]
+        N["Cloud Monitoring<br/>- Provides dashboards and alerts"]
+        K["Gateway API Resources (Gateway, HTTPRoute, etc.)<br/> - Configures Load Balancing"]
+    end
+
+    A -->|"Sends request to"| B
+    A -->|"Sends request directly to"| C
+    B -->|"Routes request to"| C
+    C -->|"Uses to configure Load Balancing"| K
+    C -->|"Uses to optimize routing decisions (optional)"| G
+    C -->|"Sends request to perform safety checks (optional)"| L
+    L -->|"Forwards request to"| H
+    G -->|"Selects target InferencePool"| E
+    C -->|"Routes request to"| D
+    D -->|"Forwards request to target InferencePool"| E
+    E -->|"Serves the models defined in"| F
+    F -->|"Specifies models to be loaded in"| H
+    H -->|"Exposes custom metrics to"| M
+    H -->|"Exposes metrics to"| J
+    M -->|"Provides custom metrics to"| J
+    J -->|"Sends metrics to"| N
+    J -->|"Provides metrics for Gateway decisions"| C
+    H -->|"Returns response to"| I
+`;
+
+        // Get Gist ID from URL if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const gistId = urlParams.get('gist_id');
+
+        // Load Mermaid code from Gist if Gist ID is present
+        if (gistId) {
+            fetch(`/get-gist/${gistId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.mermaid_code) {
+                        if (mermaidEditor) {
+                            mermaidEditor.setValue(data.mermaid_code);
+                            renderMermaid();
+                        } else {
+                            console.error('CodeMirror editor not initialized');
+                        }
+                    } else if (data.error) {
+                        const errorMessage = document.getElementById('error-message');
+                        if (errorMessage) {
+                            errorMessage.textContent = data.error;
+                        }
+                    }
+                })
+                .catch(error => {
+                    const errorMessage = document.getElementById('error-message');
+                    if (errorMessage) {
+                        errorMessage.textContent = 'Failed to load Gist: ' + error;
+                    }
+                });
+        }
+
+        /**
+         * Checks the Mermaid syntax using the Gemini API.
+         */
+        async function checkMermaidSyntax() {
+            const apiKey = document.getElementById(API_KEY_INPUT_ID).value;
+            // Get value from CodeMirror editor
+            const mermaidInput = mermaidEditor.getValue();
+            const syntaxOutputDiv = document.getElementById(SYNTAX_CHECK_OUTPUT_ID);
+
+            syntaxOutputDiv.classList.remove('hidden'); // Show the output area
+            syntaxOutputDiv.innerHTML = '문법 체크 중...';
+            syntaxOutputDiv.style.color = 'black'; // Reset color
+            syntaxOutputDiv.style.backgroundColor = '#fff'; // Reset background
+
+            if (!apiKey) {
+                syntaxOutputDiv.innerHTML = '<span class="error-message">오류:</span> Gemini API Key를 입력해주세요.';
+                syntaxOutputDiv.style.color = 'red';
+                syntaxOutputDiv.style.backgroundColor = '#fdd'; // Light red background for error
+                return;
+            }
+
+            if (!mermaidInput.trim()) {
+                 syntaxOutputDiv.innerHTML = '<span class="error-message">오류:</span> 체크할 Mermaid 문법을 입력해주세요.';
+                 syntaxOutputDiv.style.color = 'red';
+                 syntaxOutputDiv.style.backgroundColor = '#fdd'; // Light red background for error
+                 return;
+            }
+
+            // Prompt for Gemini to validate Mermaid syntax
+            const prompt = `다음 Mermaid 문법의 유효성을 검사하고, 오류가 있다면 상세하게 설명해 주세요. 문법이 유효하면 '유효한 문법입니다.'라고만 응답해주세요.
+Mermaid 문법:
+\`\`\`mermaid
+${mermaidInput}
+\`\`\`
+응답 형식: 유효하면 '유효한 문법입니다.', 오류가 있다면 '오류: [오류 설명]'`;
+
+
+            // Gemini API Endpoint (using gemini-2.5-flash-preview-04-17 model)
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${apiKey}`;
+
+            try {
+                syntaxOutputDiv.innerHTML = 'Gemini API 응답 대기 중...'; // Indicate waiting for response
+                syntaxOutputDiv.style.backgroundColor = '#ffe'; // Light yellow for pending
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: prompt }]
+                        }]
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                     syntaxOutputDiv.innerHTML = `<span class="error-message">API 오류 (${response.status}):</span> ${errorBody.error.message}`;
+                     syntaxOutputDiv.style.color = 'red';
+                     syntaxOutputDiv.style.backgroundColor = '#fdd'; // Light red background for error
+                     console.error('Gemini API error:', errorBody);
+                    return;
+                }
+
+                syntaxOutputDiv.innerHTML = 'Gemini 응답 처리 중...'; // Indicate processing response
+                syntaxOutputDiv.style.backgroundColor = '#eef'; // Light blue for processing
+
+                const data = await response.json();
+
+                if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+                    const geminiText = data.candidates[0].content.parts[0].text.trim();
+
+                    if (geminiText.startsWith('유효한 문법입니다.')) {
+                        syntaxOutputDiv.innerHTML = '<span style="color: green; font-weight: bold;">문법 체크 결과:</span> ' + geminiText;
+                        syntaxOutputDiv.style.color = 'green';
+                        syntaxOutputDiv.style.backgroundColor = '#dfd'; // Light green background for success
+                    } else if (geminiText.startsWith('오류:')) {
+                        syntaxOutputDiv.innerHTML = '<span class="error-message">문법 체크 결과:</span> ' + geminiText;
+                        syntaxOutputDiv.style.color = 'red';
+                        syntaxOutputDiv.style.backgroundColor = '#fdd'; // Light red background for error
+                    } else {
+                         syntaxOutputDiv.innerHTML = '<span style="color: orange; font-weight: bold;">문법 체크 결과 (알 수 없음):</span> ' + geminiText;
+                         syntaxOutputDiv.style.color = 'orange';
+                         syntaxOutputDiv.style.backgroundColor = '#ffe'; // Light yellow background for warning
+                         console.error('Gemini API returned unexpected data structure:', data);
+                    }
+                } else {
+                    syntaxOutputDiv.innerHTML = '<span style="color: orange; font-weight: bold;">문법 체크 결과 (응답 없음):</span> Gemini API로부터 유효한 응답을 받지 못했습니다.';
+                    syntaxOutputDiv.style.color = 'orange';
+                    syntaxOutputDiv.style.backgroundColor = '#ffe'; // Light yellow background for warning
+                    console.error('Gemini API returned unexpected data structure:', data);
+                }
+
+            } catch (error) {
+                syntaxOutputDiv.innerHTML = '<span class="error-message">네트워크 오류:</span> ' + error.message;
+                syntaxOutputDiv.style.color = 'red';
+                syntaxOutputDiv.style.backgroundColor = '#fdd'; // Light red background for error
+                console.error('Network or parsing error:', error);
+            }
+        }
+
+        /**
+         * Renders the Mermaid diagram using the Mermaid library.
+         */
+        function renderMermaid() {
+            // Get value from CodeMirror editor
+            const input = mermaidEditor.getValue();
+            const outputDiv = document.getElementById(OUTPUT_ID);
+            const widthInput = document.getElementById(OUTPUT_WIDTH_INPUT_ID);
+            const heightInput = document.getElementById(OUTPUT_HEIGHT_INPUT_ID);
+            const container = document.querySelector('.container'); // Get the container element
+
+            outputDiv.innerHTML = '렌더링 중...';
+            outputDiv.style.backgroundColor = '#eee';
+
+            const customWidth = widthInput.value.trim();
+            const customHeight = heightInput.value.trim();
+
+            // --- 너비 설정 로직 수정 ---
+            if (customWidth) {
+                // 사용자가 너비를 입력한 경우
+                outputDiv.style.width = customWidth + 'px';
+                outputDiv.style.maxWidth = customWidth + 'px';
+            } else {
+                 // 사용자가 너비를 입력하지 않은 경우 -> 컨테이너 너비 사용
+                 if (container) {
+                     const containerClientWidth = container.clientWidth; // 컨테이너의 내부 너비 (패딩 포함, 보더/스크롤바 제외)
+                     outputDiv.style.width = containerClientWidth + 'px';
+                     outputDiv.style.maxWidth = containerClientWidth + 'px'; // 최대 너비도 설정
+                 } else {
+                    // 컨테이너를 찾지 못한 경우 fallback (기존 로직 유지)
+                    outputDiv.style.width = '100%';
+                    outputDiv.style.maxWidth = '800px';
+                 }
+            }
+            // --- 너비 설정 로직 수정 끝 ---
+
+            if (customHeight) {
+                outputDiv.style.height = customHeight + 'px';
+            } else {
+                 outputDiv.style.height = 'auto'; // Default to auto height if no custom height
+                 outputDiv.style.minHeight = '150px'; // Ensure minimum height
+            }
+
+
+            if (!input.trim()) {
+                outputDiv.innerHTML = '렌더링할 Mermaid 문법을 입력해주세요.';
+                 // 입력값이 없을 때도 너비/높이 초기화 (동적 또는 기본값으로)
+                 if (customWidth) {
+                     outputDiv.style.width = customWidth + 'px';
+                     outputDiv.style.maxWidth = customWidth + 'px';
+                 } else if(container) {
+                     const containerClientWidth = container.clientWidth;
+                     outputDiv.style.width = containerClientWidth + 'px';
+                     outputDiv.style.maxWidth = containerClientWidth + 'px';
+                 } else {
+                     outputDiv.style.width = '100%';
+                     outputDiv.style.maxWidth = '800px';
+                 }
+                 if (customHeight) {
+                    outputDiv.style.height = customHeight + 'px';
+                 } else {
+                    outputDiv.style.height = 'auto';
+                    outputDiv.style.minHeight = '150px';
+                 }
+                return;
+            }
+
+            try {
+                // Use a unique ID for rendering each time to avoid conflicts
+                const renderId = 'graphDiv-' + Date.now();
+                mermaid.render(renderId, input)
+                    .then(({ svg, bindFunctions }) => {
+                        outputDiv.innerHTML = svg;
+                        // The bindFunctions argument might not be passed in newer Mermaid versions or depending on diagram type.
+                        // It's generally safer to let Mermaid handle interactions if initialized correctly.
+                        // if (bindFunctions) {
+                        //     bindFunctions(outputDiv); // Pass the container element
+                        // }
+                         outputDiv.style.backgroundColor = '#eee'; // Reset background on success
+                         // Ensure the rendered SVG respects the container size
+                         const renderedSvg = outputDiv.querySelector('svg');
+                         if (renderedSvg) {
+                             renderedSvg.style.maxWidth = '100%';
+                             renderedSvg.style.height = 'auto';
+                         }
+
+                    })
+                    .catch(error => {
+                        // Display rendering error message
+                        outputDiv.innerHTML = `<div class="error-message">렌더링 오류: ${error.message}</div>`;
+                         outputDiv.style.backgroundColor = '#fdd'; // Light red background for error
+
+                        // Create and add the fix button dynamically
+                        const fixButton = document.createElement('button');
+                        fixButton.classList.add('fix-button');
+                        fixButton.textContent = 'Gemini에게 오류 수정 요청';
+
+                        // Use addEventListener instead of onclick attribute
+                        fixButton.addEventListener('click', () => {
+                            requestGeminiSyntaxFix(input, error.message);
+                        });
+
+                        outputDiv.appendChild(fixButton); // Add button to the output div
+
+                        console.error('Mermaid rendering error:', error);
+                    });
+            } catch (error) {
+                 // Catch potential errors before calling mermaid.render
+                 outputDiv.innerHTML = `<div class="error-message">Mermaid 문법 오류 (렌더링 전): ${error.message}</div>`;
+                 outputDiv.style.backgroundColor = '#fdd'; // Light red background for error
+
+                 // Create and add the fix button dynamically
+                 const fixButton = document.createElement('button');
+                 fixButton.classList.add('fix-button');
+                 fixButton.textContent = 'Gemini에게 오류 수정 요청';
+
+                 // Use addEventListener instead of onclick attribute
+                 fixButton.addEventListener('click', () => {
+                     requestGeminiSyntaxFix(input, error.message);
+                 });
+
+                 outputDiv.appendChild(fixButton); // Add button to the output div
+
+                 console.error('Mermaid syntax error before render:', error);
+            }
+        }
+
+        /**
+         * Requests Gemini to fix the Mermaid syntax based on the input and error message.
+         * @param {string} mermaidInput - The original Mermaid input with errors.
+         * @param {string} errorMessage - The error message from the Mermaid renderer.
+         */
+        async function requestGeminiSyntaxFix(mermaidInput, errorMessage) {
+            const apiKey = document.getElementById(API_KEY_INPUT_ID).value;
+            const syntaxOutputDiv = document.getElementById(SYNTAX_CHECK_OUTPUT_ID);
+            // No need for mermaidInputTextarea here, use mermaidEditor
+
+            syntaxOutputDiv.classList.remove('hidden'); // Show the output area
+            syntaxOutputDiv.innerHTML = 'Gemini에게 오류 수정 요청 시작...'; // Initial state
+            syntaxOutputDiv.style.color = 'black';
+            syntaxOutputDiv.style.backgroundColor = '#fff'; // Reset background
+
+            if (!apiKey) {
+                syntaxOutputDiv.innerHTML = '<span class="error-message">오류:</span> Gemini API Key를 입력해주세요.';
+                syntaxOutputDiv.style.color = 'red';
+                 syntaxOutputDiv.style.backgroundColor = '#fdd';
+                return;
+            }
+
+             // Prompt for Gemini to fix the syntax and provide explanation based on specific rules
+             // Explicitly instruct Gemini to ONLY return the JSON object and nothing else.
+             const prompt = `다음 Mermaid 문법을 렌더링하려는데 "${errorMessage}" 오류가 발생했습니다. 이 오류를 수정하고 다음 규칙을 엄격히 준수하여 올바른 Mermaid 문법과 함께, 어떤 부분을 어떻게 수정했는지에 대한 간략한 설명을 제공해 주세요.
+
+규칙:
+1. 주석은 '%%'를 사용하고 별도의 라인에 작성해야 합니다. 기존 코드 뒤에 붙여서 작성하면 안 됩니다.
+2. 괄호, 슬래시, <br/> 등 특수 문자가 포함된 노드 이름은 반드시 큰따옴표("")로 감싸야 합니다.
+3. 서브그래프 이름에 공백이나 특수 문자 대신 언더스코어(_)를 사용해야 합니다.
+4. 특수 문자가 포함된 링크 라벨은 반드시 큰따옴표("")로 감싸야 합니다.
+5. 줄바꿈은 '<br/>' 태그를 사용해야 합니다.
+6. '기타_Pod', '기타 vLLM 서버'와 같이 모호하거나 일반적인 이름 대신 더 명확하고 구체적인 이름을 사용해야 합니다.
+7. 모든 세미콜론(;)을 제거해야 합니다.
+8. subgraph ... end 블록을 사용할 때는, end와 다음 노드 선언 사이에 반드시 빈 줄을 추가해야 합니다.
+9. Mermaid 예약어(end, subgraph 등)는 노드 ID로 사용하지 말고, 노드 라벨로만 사용하려면 ID를 다르게 지정해야 합니다.
+10. 엣지(화살표)에 텍스트를 넣을 때는 -->|"텍스트"| 또는 -.->|"텍스트"|와 같이 파이프(|)로 감싸서 작성해야 합니다.
+11. 노드 ID에는 특수 문자나 한글을 사용하지 마세요. 예: \`E[["vLLM Pods..."]]\` 대신 \`E_node[["vLLM Pods..."]]\` 사용을 권장합니다.
+12. 링크 스타인덱스는 0부터 시작합니다. 예를 들어 첫 번째 연결에 스타일을 적용하려면 \`linkStyle 0\`을 사용합니다.
+
+응답은 반드시 다음 JSON 형식으로만 제공해야 합니다. JSON 객체 외에 다른 설명이나 추가 텍스트(예: 마크다운 코드 블록 \`\`\`json \`\`\`)는 절대 포함하지 마세요.
+{
+  "corrected_syntax": "규칙에 따라 수정된 올바른 Mermaid 문법",
+  "explanation": "어떤 규칙을 적용하여 오류를 수정했는지에 대한 간략한 설명"
+}
+
+Mermaid 문법:
+\`\`\`mermaid
+${mermaidInput}
+\`\`\`
+`;
+
+
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${apiKey}`;
+
+            try {
+                syntaxOutputDiv.innerHTML = 'Gemini API 응답 대기 중...'; // Indicate waiting for response
+                syntaxOutputDiv.style.backgroundColor = '#ffe'; // Light yellow for pending
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{ text: prompt }]
+                        }]
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json();
+                     syntaxOutputDiv.innerHTML = `<span class="error-message">API 오류 (${response.status}):</span> ${errorBody.error.message}`;
+                     syntaxOutputDiv.style.color = 'red';
+                     syntaxOutputDiv.style.backgroundColor = '#fdd';
+                     console.error('Gemini API error:', errorBody);
+                    return;
+                }
+
+                syntaxOutputDiv.innerHTML = 'Gemini 응답 처리 중...'; // Indicate processing response
+                syntaxOutputDiv.style.backgroundColor = '#eef'; // Light blue for processing
+
+                const data = await response.json();
+
+                if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
+                    let geminiText = data.candidates[0].content.parts[0].text.trim();
+
+                    // Use regex to find and extract the JSON object { ... }
+                    // More robust regex to handle potential leading/trailing characters including markdown blocks
+                    const jsonMatch = geminiText.match(/```json\s*(\{[\s\S]*?\})\s*```|```\s*(\{[\s\S]*?\})\s*```|(\{[\s\S]*?\})/);
+
+                    let jsonString = null;
+                    if (jsonMatch) {
+                        // Check captured groups in order of preference: ```json```, ```, plain {}
+                        if (jsonMatch[1]) {
+                            jsonString = jsonMatch[1];
+                        } else if (jsonMatch[2]) {
+                            jsonString = jsonMatch[2];
+                        } else if (jsonMatch[3]) {
+                            jsonString = jsonMatch[3];
+                        }
+                    }
+
+
+                    if (jsonString) {
+                        try {
+                            // Attempt to parse the extracted JSON string
+                            const responseJson = JSON.parse(jsonString);
+
+                            if (responseJson.corrected_syntax !== undefined && responseJson.explanation !== undefined) { // Check for existence, not just truthiness
+                                const correctedSyntax = responseJson.corrected_syntax;
+                                const explanation = responseJson.explanation;
+
+                                // Update CodeMirror editor's content
+                                mermaidEditor.setValue(correctedSyntax);
+
+                                syntaxOutputDiv.innerHTML = `
+                                    <span style="color: green; font-weight: bold;">문법 수정 완료:</span> Gemini가 제안한 수정된 문법이 입력창에 적용되었습니다. 다시 렌더링해보세요!
+                                    <div class="explanation">
+                                        <span style="font-weight: bold;">수정 내용:</span> ${explanation}
+                                    </div>
+                                `;
+                                syntaxOutputDiv.style.color = 'green';
+                                syntaxOutputDiv.style.backgroundColor = '#dfd'; // Light green for success
+
+                                 // Optionally, hide the fix button in the output area
+                                const fixButton = document.querySelector(`#${OUTPUT_ID} .fix-button`);
+                                if (fixButton) {
+                                    fixButton.style.display = 'none';
+                                }
+
+                                // Trigger rendering after applying the fix
+                                renderMermaid();
+
+                            } else {
+                                 // Handle cases where JSON is parsed but lacks required fields
+                                syntaxOutputDiv.innerHTML = '<span style="color: orange; font-weight: bold;">문법 수정 결과 (응답 형식 오류):</span> Gemini API로부터 예상치 못한 형식의 응답을 받았습니다 (필수 필드 누락). 응답 내용: <pre>' + escapeHtml(jsonString) + '</pre>';
+                                syntaxOutputDiv.style.color = 'orange';
+                                syntaxOutputDiv.style.backgroundColor = '#ffe';
+                                console.error('Gemini API returned unexpected JSON structure (missing fields):', responseJson);
+                            }
+
+                        } catch (jsonError) {
+                             // Handle JSON parsing errors
+                            syntaxOutputDiv.innerHTML = '<span style="color: red; font-weight: bold;">문법 수정 결과 (JSON 파싱 오류):</span> Gemini API 응답을 파싱하는 데 실패했습니다. 파싱 시도 내용: <pre>' + escapeHtml(jsonString) + '</pre>'; // Display raw response for debugging
+                            syntaxOutputDiv.style.color = 'red';
+                            syntaxOutputDiv.style.backgroundColor = '#fdd';
+                            console.error('Error parsing Gemini API response JSON:', jsonError);
+                        }
+                    } else {
+                         // Handle cases where no JSON object is found in the response
+                        syntaxOutputDiv.innerHTML = '<span style="color: orange; font-weight: bold;">문법 수정 결과 (JSON 객체 찾기 실패):</span> Gemini API 응답에서 유효한 JSON 객체를 찾지 못했습니다. 응답 내용: <pre>' + escapeHtml(geminiText) + '</pre>';
+                        syntaxOutputDiv.style.color = 'orange';
+                        syntaxOutputDiv.style.backgroundColor = '#ffe';
+                        console.error('Gemini API response did not contain a JSON object:', geminiText);
+                    }
+
+
+                } else {
+                    syntaxOutputDiv.innerHTML = '<span style="color: orange; font-weight: bold;">문법 수정 결과 (응답 없음):</span> Gemini API로부터 유효한 수정 제안을 받지 못했습니다.';
+                    syntaxOutputDiv.style.color = 'orange';
+                    syntaxOutputDiv.style.backgroundColor = '#ffe'; // Light yellow for warning
+                    console.error('Gemini API returned unexpected data structure:', data);
+                }
+
+            } catch (error) {
+                syntaxOutputDiv.innerHTML = '<span class="error-message">네트워크 오류:</span> ' + error.message;
+                syntaxOutputDiv.style.color = 'red';
+                syntaxOutputDiv.style.backgroundColor = '#fdd'; // Light red for error
+                console.error('Network or parsing error during fix request:', error);
+            }
+        }
+
+        /**
+         * Helper function to escape HTML entities for displaying strings safely in HTML.
+         * @param {string} str - The string to escape.
+         * @returns {string} The escaped string.
+         */
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#039;');
+        }
+
+        /**
+         * Copies the content of the CodeMirror editor to the clipboard.
+         */
+        function copyMermaidInput() {
+            const copyButton = document.getElementById(COPY_BUTTON_ID);
+
+            if (!mermaidEditor || !copyButton) {
+                console.error("CodeMirror editor or copy button not found.");
+                return;
+            }
+
+            // Get value from CodeMirror editor
+            const textToCopy = mermaidEditor.getValue();
+
+            // Use the Clipboard API
+            navigator.clipboard.writeText(textToCopy)
+                .then(() => {
+                    // Provide visual feedback
+                    const originalText = copyButton.textContent;
+                    copyButton.textContent = '복사 완료!';
+                    copyButton.style.backgroundColor = '#22c55e'; // Tailwind green-500
+                    setTimeout(() => {
+                        copyButton.textContent = originalText;
+                        copyButton.style.backgroundColor = '#10b981'; // Reset to original green
+                    }, 2000); // Reset text after 2 seconds
+                })
+                .catch(err => {
+                    console.error('Failed to copy text:', err); // Log the full error object
+                    // Optionally, show an error message to the user
+                    const originalText = copyButton.textContent;
+                    copyButton.textContent = '복사 실패!';
+                    copyButton.style.backgroundColor = '#ef4444'; // Tailwind red-500
+                     setTimeout(() => {
+                        copyButton.textContent = originalText;
+                        copyButton.style.backgroundColor = '#10b981'; // Reset to original green
+                    }, 2000); // Reset text after 2 seconds
+                });
+        }
+
+        /**
+         * Loads the GKE sample content into the editor.
+         */
+        function loadGkeSample() {
+            if (mermaidEditor) {
+                mermaidEditor.setValue(GKE_SAMPLE_CONTENT);
+                // Optional: Automatically render after loading sample
+                // renderMermaid();
+                // Optional: Show a confirmation in the syntax check area
+                const syntaxOutputDiv = document.getElementById(SYNTAX_CHECK_OUTPUT_ID);
+                syntaxOutputDiv.classList.remove('hidden');
+                syntaxOutputDiv.innerHTML = '<span style="color: blue; font-weight: bold;">알림:</span> GKE 샘플 다이어그램이 로드되었습니다. 필요시 렌더링 버튼을 클릭하세요.';
+                syntaxOutputDiv.style.color = 'blue';
+                syntaxOutputDiv.style.backgroundColor = '#eef'; // Light blue background
+            } else {
+                console.error("CodeMirror editor not found. Cannot load sample.");
+                 // Provide feedback even if editor isn't ready
+                 const syntaxOutputDiv = document.getElementById(SYNTAX_CHECK_OUTPUT_ID);
+                 syntaxOutputDiv.classList.remove('hidden');
+                 syntaxOutputDiv.innerHTML = '<span class="error-message">오류:</span> 편집기가 초기화되지 않아 샘플을 로드할 수 없습니다.';
+                 syntaxOutputDiv.style.color = 'red';
+                 syntaxOutputDiv.style.backgroundColor = '#fdd';
+            }
+        }
+
+        /**
+         * Saves the current Mermaid code to a GitHub Gist via the backend.
+         */
+        async function saveToGist() {
+            const mermaidInput = mermaidEditor.getValue();
+            const githubToken = document.getElementById('github-token').value;
+            const gistOutputDiv = document.getElementById(GIST_LINK_OUTPUT_ID);
+            const gistLinkElement = document.getElementById(GIST_LINK_ID);
+            const gistErrorElement = document.getElementById(GIST_ERROR_ID);
+
+            gistOutputDiv.classList.remove('hidden');
+            gistLinkElement.textContent = '저장 중...';
+            gistLinkElement.removeAttribute('href');
+            gistErrorElement.textContent = '';
+
+            if (!githubToken) {
+                gistErrorElement.textContent = 'GitHub Token을 입력해주세요.';
+                gistLinkElement.textContent = '';
+                return;
+            }
+
+            if (!mermaidInput.trim()) {
+                gistErrorElement.textContent = '저장할 내용이 없습니다.';
+                gistLinkElement.textContent = '';
+                return;
+            }
+
+            try {
+                const response = await fetch('/save-gist', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        mermaid_code: mermaidInput, 
+                        github_token: githubToken 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    gistErrorElement.textContent = `Gist 저장 실패 (${response.status}): ${data.error || '서버 오류'}`;
+                    gistLinkElement.textContent = '';
+                    console.error('Gist save error:', data);
+                } else {
+                    // 렌더링 URL을 클립보드에 복사
+                    navigator.clipboard.writeText(data.render_url)
+                        .then(() => {
+                            gistLinkElement.href = data.render_url;
+                            gistLinkElement.textContent = '렌더링 URL이 클립보드에 복사되었습니다. 클릭하여 열기';
+                            gistErrorElement.textContent = '';
+                            alert('다이어그램이 저장되었습니다! 렌더링 URL이 클립보드에 복사되었습니다.');
+                        })
+                        .catch(() => {
+                            gistLinkElement.href = data.render_url;
+                            gistLinkElement.textContent = data.render_url;
+                            gistErrorElement.textContent = '';
+                            alert('다이어그램이 저장되었습니다! 렌더링 URL: ' + data.render_url);
+                        });
+                }
+
+            } catch (error) {
+                gistErrorElement.textContent = '네트워크 오류 또는 서버 통신 실패: ' + error.message;
+                gistLinkElement.textContent = '';
+                console.error('Network or fetch error:', error);
+            }
+        }
+
+        /**
+         * SVG를 PNG 이미지로 변환하고 다운로드합니다.
+         */
+        function downloadAsImage() {
+            const svgElement = document.querySelector('#output svg');
+            if (!svgElement) {
+                alert('다운로드할 다이어그램이 없습니다.');
+                return;
+            }
+
+            // SVG를 이미지로 변환
+            const svgData = new XMLSerializer().serializeToString(svgElement);
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            // 이미지 크기 설정
+            const width = svgElement.getBoundingClientRect().width;
+            const height = svgElement.getBoundingClientRect().height;
+            canvas.width = width;
+            canvas.height = height;
+
+            // crossOrigin 속성 설정
+            img.crossOrigin = 'anonymous';
+            
+            img.onload = function() {
+                ctx.drawImage(img, 0, 0);
+                const pngFile = canvas.toDataURL('image/png');
+                
+                // 다운로드 링크 생성
+                const downloadLink = document.createElement('a');
+                downloadLink.download = 'mermaid-diagram.png';
+                downloadLink.href = pngFile;
+                downloadLink.click();
+            };
+
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        }
+
+        // Add event listeners after the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // Initialize Mermaid first
+            mermaid.initialize({ startOnLoad: false });
+
+            // Initialize CodeMirror on the textarea
+            const mermaidTextarea = document.getElementById(MERMAID_INPUT_ID);
+            if (mermaidTextarea) {
+                mermaidEditor = CodeMirror.fromTextArea(mermaidTextarea, {
+                    lineNumbers: true,
+                    mode: 'mermaid',
+                    theme: 'default',
+                    lineWrapping: true
+                });
+
+                mermaidEditor.setSize(null, 'auto');
+
+                // Get Gist ID from URL if present
+                const urlParams = new URLSearchParams(window.location.search);
+                const gistId = urlParams.get('gist_id');
+
+                // Load Mermaid code from Gist if Gist ID is present
+                if (gistId) {
+                    fetch(`/get-gist/${gistId}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.mermaid_code) {
+                                mermaidEditor.setValue(data.mermaid_code);
+                                renderMermaid();
+                            } else if (data.error) {
+                                const errorMessage = document.getElementById('error-message');
+                                if (errorMessage) {
+                                    errorMessage.textContent = data.error;
+                                }
+                            }
+                        })
+                        .catch(error => {
+                            const errorMessage = document.getElementById('error-message');
+                            if (errorMessage) {
+                                errorMessage.textContent = 'Failed to load Gist: ' + error;
+                            }
+                        });
+                }
+            } else {
+                console.error(`Textarea with ID ${MERMAID_INPUT_ID} not found. CodeMirror cannot be initialized.`);
+                return;
+            }
+
+            const checkSyntaxButton = document.getElementById(CHECK_SYNTAX_BUTTON_ID);
+            const renderButton = document.getElementById(RENDER_BUTTON_ID);
+            const copyButton = document.getElementById(COPY_BUTTON_ID);
+            const loadSampleButton = document.getElementById(LOAD_SAMPLE_BUTTON_ID);
+            const saveGistButton = document.getElementById(SAVE_GIST_BUTTON_ID);
+            const saveImageButton = document.getElementById(SAVE_IMAGE_BUTTON_ID);
+
+            if (checkSyntaxButton) {
+                checkSyntaxButton.addEventListener('click', checkMermaidSyntax);
+            } else {
+                 console.error(`Button with ID ${CHECK_SYNTAX_BUTTON_ID} not found.`);
+            }
+
+            if (renderButton) {
+                renderButton.addEventListener('click', renderMermaid);
+            } else {
+                 console.error(`Button with ID ${RENDER_BUTTON_ID} not found.`);
+            }
+
+            // Add 'change' event listener for auto-rendering with CodeMirror
+            if (mermaidEditor) {
+                mermaidEditor.on('change', () => {
+                    // Clear the previous timeout
+                    if (autoRenderTimeout) {
+                        clearTimeout(autoRenderTimeout);
+                    }
+                    // Set a new timeout to call renderMermaid after 3000ms (3 seconds)
+                    autoRenderTimeout = setTimeout(renderMermaid, 3000);
+                });
+            } else {
+                console.error(`Textarea with ID ${MERMAID_INPUT_ID} not found.`);
+            }
+
+            // Add event listener for the copy button
+            if (copyButton) {
+                copyButton.addEventListener('click', copyMermaidInput);
+            } else {
+                 console.error(`Button with ID ${COPY_BUTTON_ID} not found.`);
+            }
+
+            // Add event listener for the load sample button
+            if (loadSampleButton) {
+                loadSampleButton.addEventListener('click', loadGkeSample);
+            } else {
+                console.error(`Button with ID ${LOAD_SAMPLE_BUTTON_ID} not found.`);
+            }
+
+            // Add event listener for the save gist button
+            if (saveGistButton) {
+                saveGistButton.addEventListener('click', saveToGist);
+            } else {
+                console.error(`Button with ID ${SAVE_GIST_BUTTON_ID} not found.`);
+            }
+
+            // Add event listener for the save image button
+            if (saveImageButton) {
+                saveImageButton.addEventListener('click', downloadAsImage);
+            } else {
+                console.error(`Button with ID ${SAVE_IMAGE_BUTTON_ID} not found.`);
+            }
+
+            // Optional: Render on initial load if there's default text in CodeMirror
+            if (mermaidEditor && mermaidEditor.getValue().trim() !== '') {
+                 renderMermaid();
+            }
+
+            // 채팅 기능 구현
+            function initializeChat() {
+                const chatInput = document.getElementById('chat-input');
+                const chatButton = document.getElementById('chat-button');
+                const chatResponse = document.getElementById('chat-response');
+                const chatError = document.getElementById('chat-error');
+                const apiKeyInput = document.getElementById('api-key');
+
+                chatButton.addEventListener('click', async () => {
+                    const question = chatInput.value.trim();
+                    const apiKey = apiKeyInput.value.trim();
+                    const mermaidCode = mermaidEditor.getValue().trim();
+
+                    if (!question) {
+                        showChatError('질문을 입력해주세요.');
+                        return;
+                    }
+
+                    if (!apiKey) {
+                        showChatError('Gemini API Key를 입력해주세요.');
+                        return;
+                    }
+
+                    if (!mermaidCode) {
+                        showChatError('다이어그램이 없습니다.');
+                        return;
+                    }
+
+                    // UI 상태 업데이트
+                    chatButton.disabled = true;
+                    chatButton.textContent = '응답 대기 중...';
+                    chatResponse.style.display = 'none';
+                    chatError.style.display = 'none';
+
+                    try {
+                        const response = await fetch('/chat-with-diagram', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                api_key: apiKey,
+                                diagram: mermaidCode,
+                                question: question
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            showChatResponse(data.answer);
+                        } else {
+                            showChatError(data.error || '응답을 받지 못했습니다.');
+                        }
+                    } catch (error) {
+                        showChatError('서버와 통신 중 오류가 발생했습니다.');
+                        console.error('Chat error:', error);
+                    } finally {
+                        chatButton.disabled = false;
+                        chatButton.textContent = '질문하기';
+                    }
+                });
+
+                // Enter 키로 질문 전송
+                chatInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !chatButton.disabled) {
+                        chatButton.click();
+                    }
+                });
+
+                function showChatResponse(text) {
+                    chatResponse.textContent = text;
+                    chatResponse.style.display = 'block';
+                    chatError.style.display = 'none';
+                }
+
+                function showChatError(text) {
+                    chatError.textContent = text;
+                    chatError.style.display = 'block';
+                    chatResponse.style.display = 'none';
+                }
+            }
+
+            // Initialize chat functionality
+            initializeChat();
+        });
+
+    </script>
+</body>
+</html>
+
