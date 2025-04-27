@@ -16,6 +16,7 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -32,6 +33,9 @@ ENV/
 
 # Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Environment variables
 .env
@@ -49,5 +53,8 @@ Thumbs.db
 # Node.js / npm
 node_modules/
 .npm/
-npm-debug.log*
-.node_repl_history 
+.npm-debug.log*
+.node_repl_history
+
+# Tailwind CSS build
+static/css/output.css 
