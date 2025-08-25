@@ -147,7 +147,7 @@ def chat_with_diagram():
         return jsonify({'error': '필수 파라미터가 누락되었습니다.'}), 400
 
     # Gemini API 엔드포인트
-    API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key={api_key}"
+    API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
 
     # 프롬프트 구성
     prompt = f"""다음은 Mermaid 다이어그램입니다:
@@ -195,4 +195,4 @@ if __name__ == '__main__':
     # 개발 서버 대신 프로덕션용 WSGI 서버(예: gunicorn) 사용을 권장하지만,
     # 여기서는 Flask 개발 서버를 PORT 변수에 맞춰 실행합니다.
     # Gunicorn 등을 사용하려면 Dockerfile의 CMD도 수정해야 합니다.
-    app.run(host='0.0.0.0', port=port) 
+    app.run(host='0.0.0.0', port=port)

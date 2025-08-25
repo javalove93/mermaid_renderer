@@ -237,7 +237,7 @@
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" class="token-link">Get API Key here</a>
                 <input type="password" id="api-key" class="token-input" placeholder="여기에 Gemini API Key를 입력하세요">
                 <p class="token-warning">경고: API Key/Token을 브라우저 코드에 직접 넣는 것은 보안상 위험합니다. 테스트 목적으로만 사용하세요.</p>
-                <p class="token-description">사용 모델: Gemini 2.5 Flash (preview-04-17)</p>
+                <p class="token-description">사용 모델: Gemini 2.5 Flash</p>
             </div>
 
             <div class="token-input-group">
@@ -430,7 +430,7 @@ ${mermaidInput}
 
 
             // Gemini API Endpoint (using gemini-2.5-flash-preview-04-17 model)
-            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${apiKey}`;
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
             try {
                 syntaxOutputDiv.innerHTML = 'Gemini API 응답 대기 중...'; // Indicate waiting for response
@@ -1184,4 +1184,3 @@ ${mermaidInput}
     </script>
 </body>
 </html>
-

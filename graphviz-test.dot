@@ -1,0 +1,14 @@
+digraph {
+  rankdir=LR
+  node [style=filled]
+  A [label="VPC A" color="lightgreen"];
+  B [label="VPC B" color="lightskyblue"];
+  C [label="VPC C" color="lightgray"];
+  SQL [label="Cloud SQL (VPC A)" color="gold"];
+  PSC [label="PSC Endpoint (VPC C)" color="coral"];
+
+  A -> C [label="VPC Peering"];
+  B -> C [label="VPC Peering"];
+  SQL -> PSC [label="PSC"];
+    
+}
