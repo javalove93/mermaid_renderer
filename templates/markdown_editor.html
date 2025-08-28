@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Markdown Editor</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Showdown.js for Markdown to HTML conversion -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styling for the editor and preview panes */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .editor-pane {
+            font-family: 'Fira Code', monospace;
+            background-color: #282c34; /* Dark background for editor */
+            color: #abb2bf; /* Light gray text */
+            border: none;
+            outline: none;
+            resize: none;
+            caret-color: #528bff;
+        }
+        /* Basic styling for the rendered HTML content */
+        .preview-pane h1 {
+            font-size: 2.25rem; /* text-4xl */
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.3em;
+            margin-top: 1.5em;
+            margin-bottom: 1em;
+        }
+        .preview-pane h2 {
+            font-size: 1.875rem; /* text-3xl */
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.3em;
+            margin-top: 1.5em;
+            margin-bottom: 1em;
+        }
+        .preview-pane h3 {
+            font-size: 1.5rem; /* text-2xl */
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.3em;
+            margin-top: 1.5em;
+            margin-bottom: 1em;
+        }
+        .preview-pane a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .preview-pane a:hover {
+            text-decoration: underline;
+        }
+        .preview-pane code {
+            background-color: #f3f4f6;
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            border-radius: 6px;
+            font-family: 'Fira Code', monospace;
+        }
+        .preview-pane pre {
+            background-color: #f3f4f6;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        .preview-pane pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        .preview-pane blockquote {
+            border-left: 4px solid #d1d5db;
+            padding-left: 1rem;
+            color: #6b7280;
+            margin-left: 0;
+        }
+        .preview-pane ul {
+            list-style-type: disc;
+            padding-left: 2rem;
+        }
+        .preview-pane ol {
+            list-style-type: decimal;
+            padding-left: 2rem;
+        }
+        .preview-pane table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .preview-pane th, .preview-pane td {
+            border: 1px solid #d1d5db;
+            padding: 0.5rem 1rem;
+        }
+        .preview-pane th {
+            background-color: #f9fafb;
+        }
+        .drag-over-bg {
+            background-color: #374151; /* A slightly lighter dark background for drag over */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 h-screen flex flex-col">
+
+    <div class="flex flex-col flex-grow p-4">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 shadow-sm rounded-lg mb-4">
+            <h1 id="editor-title" class="text-xl font-semibold text-gray-800 dark:text-white">Markdown Live Editor</h1>
+        </header>
+
+        <!-- Main Content: Split Screen -->
+        <main class="flex-grow grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Left Side: Markdown Input -->
+            <div class="flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+                 <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-lg font-medium text-gray-700 dark:text-gray-200">Markdown</h2>
+                </div>
+                <textarea id="markdown-input" class="editor-pane w-full h-0 flex-grow p-6 text-base overflow-y-auto" spellcheck="false"></textarea>
+            </div>
+
+            <!-- Right Side: HTML Output -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col">
+                 <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-lg font-medium text-gray-700 dark:text-gray-200">Preview</h2>
+                </div>
+                <div id="html-output" class="preview-pane p-6 overflow-y-auto flex-grow h-0 text-gray-800 dark:text-gray-200"></div>
+            </div>
+        </main>
+        <!-- Buttons Section -->
+        <div class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 flex justify-start rounded-lg mt-4">
+            <button id="upload-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mr-2">
+                Upload
+            </button>
+            <button id="sample-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded mr-2">
+                Sample
+            </button>
+            <button id="download-button" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded mr-2">
+                Download
+            </button>
+            <button id="copy-markdown-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded mr-2">
+                Copy Markdown
+            </button>
+            <button id="copy-preview-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
+                Copy Preview
+            </button>
+            <input type="file" id="file-input" accept=".md,.txt" style="display: none;">
+        </div>
+    </div>
+
+    <script>
+        // Sample Markdown Content
+        const sampleMarkdownContent = `# Welcome to the Markdown Editor!
+
+This is a live editor. Start typing on the left, and you'll see the rendered HTML on the right.
+
+## Basic Formatting
+
+You can use **bold text**, *italic text*, and \`inline code\`.
+
+### Lists
+
+- Unordered List Item 1
+- Unordered List Item 2
+    - Nested Item
+
+1. Ordered List Item 1
+2. Ordered List Item 2
+
+### Links and Images
+
+Visit [Google](https://www.google.com) for more information.
+
+![Placeholder Image](https://placehold.co/400x200/3b82f6/ffffff?text=Cool+Image)
+
+### Blockquotes
+
+> "The greatest glory in living lies not in never falling, but in rising every time we fall." - Nelson Mandela
+
+### Code Blocks
+
+\`\`\`javascript
+// Here is some Javascript code
+function greet(name) {
+  console.log('Hello, ' + name + '!');
+}
+
+greet('World');
+\`\`\``;
+
+        // DOM elements
+        const markdownInput = document.getElementById('markdown-input');
+        const htmlOutput = document.getElementById('html-output');
+        const sampleButton = document.getElementById('sample-button');
+        const uploadButton = document.getElementById('upload-button');
+        const downloadButton = document.getElementById('download-button');
+        const copyMarkdownButton = document.getElementById('copy-markdown-button');
+        const copyPreviewButton = document.getElementById('copy-preview-button');
+        const fileInput = document.getElementById('file-input');
+        const editorTitle = document.getElementById('editor-title');
+
+        // Initialize Showdown converter
+        const converter = new showdown.Converter({
+            tables: true, // Enable table support
+            strikethrough: true, // Enable strikethrough support
+            tasklists: true, // Enable task list support
+            simpleLineBreaks: true // Treat single newlines as <br>
+        });
+
+        // Function to render markdown
+        function renderMarkdown() {
+            const markdownText = markdownInput.value;
+            const html = converter.makeHtml(markdownText);
+            htmlOutput.innerHTML = html;
+        }
+
+        // Add event listener for input changes (for rendering)
+        markdownInput.addEventListener('input', renderMarkdown);
+
+        // Add event listener for keyboard input (for scroll sync)
+        markdownInput.addEventListener('keyup', () => syncScroll(markdownInput, htmlOutput));
+
+        // Add event listener for sample button click
+        sampleButton.addEventListener('click', () => {
+            markdownInput.value = sampleMarkdownContent;
+            renderMarkdown();
+            // After loading sample, ensure scroll is synced
+            syncScroll(markdownInput, htmlOutput);
+            editorTitle.textContent = 'Markdown Live Editor'; // Reset title
+        });
+
+        // Add event listener for upload button click
+        uploadButton.addEventListener('click', () => {
+            fileInput.click(); // Trigger the hidden file input
+        });
+
+        // Add event listener for file input change
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                readFileIntoEditor(file, file.name);
+            }
+        });
+
+        // Add event listener for download button click
+        downloadButton.addEventListener('click', () => {
+            const markdownText = markdownInput.value;
+            const blob = new Blob([markdownText], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const currentFilename = editorTitle.textContent;
+            a.download = currentFilename.endsWith('.md') || currentFilename.endsWith('.txt') ? currentFilename : currentFilename + '.md';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Add event listener for copy markdown button click
+        copyMarkdownButton.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(markdownInput.value);
+                alert('Markdown copied to clipboard!');
+            } catch (err) {
+                console.error('Failed to copy markdown: ', err);
+                alert('Failed to copy markdown to clipboard.');
+            }
+        });
+
+        // Add event listener for copy preview button click
+        copyPreviewButton.addEventListener('click', async () => {
+            try {
+                const htmlContent = htmlOutput.innerHTML;
+                const blob = new Blob([htmlContent], { type: 'text/html' });
+                const clipboardItem = new ClipboardItem({ 'text/html': blob });
+                await navigator.clipboard.write([clipboardItem]);
+                alert('Preview HTML copied to clipboard!');
+            } catch (err) {
+                console.error('Failed to copy preview: ', err);
+                alert('Failed to copy preview HTML to clipboard.');
+            }
+        });
+
+        // Function to read file content and update editor
+        function readFileIntoEditor(file, filename = 'Markdown Live Editor') {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                markdownInput.value = e.target.result;
+                renderMarkdown();
+                editorTitle.textContent = filename; // Update title with filename
+            };
+            reader.readAsText(file);
+        }
+
+        // Drag and Drop functionality
+        markdownInput.addEventListener('dragover', (event) => {
+            event.preventDefault(); // Prevent default to allow drop
+            event.stopPropagation();
+            markdownInput.classList.add('drag-over-bg'); // Visual feedback
+        });
+
+        markdownInput.addEventListener('dragleave', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            markdownInput.classList.remove('drag-over-bg'); // Remove visual feedback
+        });
+
+        markdownInput.addEventListener('drop', (event) => {
+            event.preventDefault(); // Prevent default file opening in browser
+            event.stopPropagation();
+            markdownInput.classList.remove('drag-over-bg'); // Remove visual feedback
+
+            const files = event.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type === 'text/markdown' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
+                    readFileIntoEditor(file, file.name); // Pass filename for drag and drop
+                } else {
+                    alert('Please drop a Markdown (.md) or text (.txt) file.');
+                }
+            }
+        });
+
+        // Synchronized Scrolling
+        let isSyncScrolling = false;
+
+        function syncScroll(scrolledElement, targetElement) {
+            if (isSyncScrolling) return;
+            isSyncScrolling = true;
+
+            const scrollPercentage = scrolledElement.scrollTop / (scrolledElement.scrollHeight - scrolledElement.clientHeight);
+            targetElement.scrollTop = scrollPercentage * (targetElement.scrollHeight - targetElement.clientHeight);
+
+            // Reset the flag after a short delay to allow the browser to process the scroll
+            setTimeout(() => {
+                isSyncScrolling = false;
+            }, 50);
+        }
+
+        markdownInput.addEventListener('scroll', () => syncScroll(markdownInput, htmlOutput));
+        htmlOutput.addEventListener('scroll', () => syncScroll(htmlOutput, markdownInput));
+
+        // Initial state: markdown panel is empty
+        // No initial render on page load, as per user request
+    </script>
+
+</body>
+</html>

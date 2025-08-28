@@ -41,6 +41,11 @@ def index():
         return render_template('index.html', gist_id=gist_id)
     return render_template('index.html')
 
+@app.route('/markdown')
+def markdown_editor():
+    """Serves the markdown editor HTML page."""
+    return render_template('markdown_editor.html')
+
 @app.route('/get-gist/<gist_id>', methods=['GET'])
 def get_gist(gist_id):
     """Fetches Mermaid code from a GitHub Gist."""
