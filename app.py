@@ -1,8 +1,10 @@
 import os
 import requests
 import json
-from flask import Flask, request, jsonify, render_template, send_from_directory, make_response
+from flask import Flask, request, jsonify, render_template, send_from_directory, make_response, send_file
 import base64
+from google.cloud import storage
+from convert_to_docs import MarkdownToDocxConverter # MarkdownToDocxConverter 임포트
 
 app = Flask(__name__, 
     template_folder='templates',
@@ -45,6 +47,34 @@ def index():
 def markdown_editor():
     """Serves the markdown editor HTML page."""
     return render_template('markdown_editor.html')
+
+@app.route('/english')
+def english_word():
+    """Serves the English word learning HTML page."""
+    return render_template('english_word.html')
+
+@app.route('/words', methods=['GET'])
+def get_words():
+    """Fetches English words from words.txt file."""
+    try:
+        # Try to read from local file first
+        with open('words.txt', 'r', encoding='utf-8') as file:
+            content = file.read().strip()
+            print("Loaded words from local file")
+            return jsonify({'words': content})
+    except FileNotFoundError:
+        # If local file not found, try to load from GCS
+        try:
+            client = storage.Client()
+            bucket = client.bucket('jerry-argolis-bucket-asia-northeast3')
+            blob = bucket.blob('words.txt')
+            content = blob.download_as_text(encoding='utf-8')
+            print("Loaded words from GCS")
+            return jsonify({'words': content.strip()})
+        except Exception as gcs_error:
+            return jsonify({'error': f'Failed to load words from GCS: {str(gcs_error)}'}), 500
+    except Exception as e:
+        return jsonify({'error': f'Failed to read words file: {str(e)}'}), 500
 
 @app.route('/get-gist/<gist_id>', methods=['GET'])
 def get_gist(gist_id):
@@ -193,6 +223,36 @@ def chat_with_diagram():
 
     except Exception as e:
         return jsonify({'error': f'서버 오류: {str(e)}'}), 500
+
+@app.route('/convert-markdown-to-docx', methods=['POST'])
+def convert_markdown_to_docx_route():
+    """마크다운을 DOCX로 변환하여 반환하는 엔드포인트"""
+    data = request.get_json()
+    markdown_text = data.get('markdown_text')
+    save_images_to_disk = data.get('save_images_to_disk', False)
+
+    if not markdown_text:
+        return jsonify({'error': '마크다운 텍스트가 필요합니다.'}), 400
+
+    try:
+        converter = MarkdownToDocxConverter()
+        # output_path=None으로 설정하여 BytesIO 객체를 반환받음
+        docx_buffer = converter.convert_markdown_to_docx(markdown_text, output_path=None, save_images_to_disk=save_images_to_disk)
+
+        if docx_buffer:
+            return send_file(
+                docx_buffer,
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                as_attachment=True,
+                download_name='document.docx'
+            )
+        else:
+            return jsonify({'error': 'DOCX 변환에 실패했습니다.'}), 500
+
+    except Exception as e:
+        import traceback
+        print(f"Markdown to DOCX 변환 중 오류 발생: {traceback.format_exc()}")
+        return jsonify({'error': f'서버 오류 발생: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # Cloud Run이 제공하는 PORT 환경 변수 사용, 없으면 5000번 기본 사용

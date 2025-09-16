@@ -8,6 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Showdown.js for Markdown to HTML conversion -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
+    <!-- Turndown.js for HTML to Markdown conversion -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code&display=swap" rel="stylesheet">
@@ -145,13 +147,17 @@
             <button id="copy-preview-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
                 Copy Preview
             </button>
+            <button id="export-docx-button" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded ml-auto">
+                Export to DOCX
+            </button>
             <input type="file" id="file-input" accept=".md,.txt" style="display: none;">
         </div>
     </div>
 
     <script>
-        // Sample Markdown Content
-        const sampleMarkdownContent = `# Welcome to the Markdown Editor!
+        document.addEventListener('DOMContentLoaded', () => {
+            // Sample Markdown Content
+            const sampleMarkdownContent = `# Welcome to the Markdown Editor!
 
 This is a live editor. Start typing on the left, and you'll see the rendered HTML on the right.
 
@@ -189,161 +195,249 @@ function greet(name) {
 greet('World');
 \`\`\``;
 
-        // DOM elements
-        const markdownInput = document.getElementById('markdown-input');
-        const htmlOutput = document.getElementById('html-output');
-        const sampleButton = document.getElementById('sample-button');
-        const uploadButton = document.getElementById('upload-button');
-        const downloadButton = document.getElementById('download-button');
-        const copyMarkdownButton = document.getElementById('copy-markdown-button');
-        const copyPreviewButton = document.getElementById('copy-preview-button');
-        const fileInput = document.getElementById('file-input');
-        const editorTitle = document.getElementById('editor-title');
+            // DOM elements
+            const markdownInput = document.getElementById('markdown-input');
+            const htmlOutput = document.getElementById('html-output');
+            const sampleButton = document.getElementById('sample-button');
+            const uploadButton = document.getElementById('upload-button');
+            const downloadButton = document.getElementById('download-button');
+            const copyMarkdownButton = document.getElementById('copy-markdown-button');
+            const copyPreviewButton = document.getElementById('copy-preview-button');
+            const fileInput = document.getElementById('file-input');
+            const editorTitle = document.getElementById('editor-title');
+            const exportDocxButton = document.getElementById('export-docx-button'); // 새로운 버튼 참조 추가
 
-        // Initialize Showdown converter
-        const converter = new showdown.Converter({
-            tables: true, // Enable table support
-            strikethrough: true, // Enable strikethrough support
-            tasklists: true, // Enable task list support
-            simpleLineBreaks: true // Treat single newlines as <br>
-        });
+            // Initialize Showdown converter
+            const converter = new showdown.Converter({
+                tables: true, // Enable table support
+                strikethrough: true, // Enable strikethrough support
+                tasklists: true, // Enable task list support
+                simpleLineBreaks: true // Treat single newlines as <br>
+            });
 
-        // Function to render markdown
-        function renderMarkdown() {
-            const markdownText = markdownInput.value;
-            const html = converter.makeHtml(markdownText);
-            htmlOutput.innerHTML = html;
-        }
+            // Initialize Turndown converter
+            const turndownService = new TurndownService({
+                headingStyle: 'atx',
+                hr: '***',
+                bulletListMarker: '-',
+                codeBlockStyle: 'fenced',
+                fence: '```',
+                emDelimiter: '*'
+            });
 
-        // Add event listener for input changes (for rendering)
-        markdownInput.addEventListener('input', renderMarkdown);
-
-        // Add event listener for keyboard input (for scroll sync)
-        markdownInput.addEventListener('keyup', () => syncScroll(markdownInput, htmlOutput));
-
-        // Add event listener for sample button click
-        sampleButton.addEventListener('click', () => {
-            markdownInput.value = sampleMarkdownContent;
-            renderMarkdown();
-            // After loading sample, ensure scroll is synced
-            syncScroll(markdownInput, htmlOutput);
-            editorTitle.textContent = 'Markdown Live Editor'; // Reset title
-        });
-
-        // Add event listener for upload button click
-        uploadButton.addEventListener('click', () => {
-            fileInput.click(); // Trigger the hidden file input
-        });
-
-        // Add event listener for file input change
-        fileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                readFileIntoEditor(file, file.name);
+            // Function to render markdown
+            function renderMarkdown() {
+                const markdownText = markdownInput.value;
+                const html = converter.makeHtml(markdownText);
+                htmlOutput.innerHTML = html;
             }
-        });
 
-        // Add event listener for download button click
-        downloadButton.addEventListener('click', () => {
-            const markdownText = markdownInput.value;
-            const blob = new Blob([markdownText], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            const currentFilename = editorTitle.textContent;
-            a.download = currentFilename.endsWith('.md') || currentFilename.endsWith('.txt') ? currentFilename : currentFilename + '.md';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        });
+            // Add event listener for input changes (for rendering)
+            markdownInput.addEventListener('input', renderMarkdown);
 
-        // Add event listener for copy markdown button click
-        copyMarkdownButton.addEventListener('click', async () => {
-            try {
-                await navigator.clipboard.writeText(markdownInput.value);
-                alert('Markdown copied to clipboard!');
-            } catch (err) {
-                console.error('Failed to copy markdown: ', err);
-                alert('Failed to copy markdown to clipboard.');
-            }
-        });
+            // Add event listener for keyboard input (for scroll sync)
+            markdownInput.addEventListener('keyup', () => syncScroll(markdownInput, htmlOutput));
 
-        // Add event listener for copy preview button click
-        copyPreviewButton.addEventListener('click', async () => {
-            try {
-                const htmlContent = htmlOutput.innerHTML;
-                const blob = new Blob([htmlContent], { type: 'text/html' });
-                const clipboardItem = new ClipboardItem({ 'text/html': blob });
-                await navigator.clipboard.write([clipboardItem]);
-                alert('Preview HTML copied to clipboard!');
-            } catch (err) {
-                console.error('Failed to copy preview: ', err);
-                alert('Failed to copy preview HTML to clipboard.');
-            }
-        });
-
-        // Function to read file content and update editor
-        function readFileIntoEditor(file, filename = 'Markdown Live Editor') {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                markdownInput.value = e.target.result;
+            // Add event listener for sample button click
+            sampleButton.addEventListener('click', () => {
+                markdownInput.value = sampleMarkdownContent;
                 renderMarkdown();
-                editorTitle.textContent = filename; // Update title with filename
-            };
-            reader.readAsText(file);
-        }
+                // After loading sample, ensure scroll is synced
+                syncScroll(markdownInput, htmlOutput);
+                editorTitle.textContent = 'Markdown Live Editor'; // Reset title
+            });
 
-        // Drag and Drop functionality
-        markdownInput.addEventListener('dragover', (event) => {
-            event.preventDefault(); // Prevent default to allow drop
-            event.stopPropagation();
-            markdownInput.classList.add('drag-over-bg'); // Visual feedback
-        });
+            // Add event listener for upload button click
+            uploadButton.addEventListener('click', () => {
+                fileInput.click(); // Trigger the hidden file input
+            });
 
-        markdownInput.addEventListener('dragleave', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            markdownInput.classList.remove('drag-over-bg'); // Remove visual feedback
-        });
-
-        markdownInput.addEventListener('drop', (event) => {
-            event.preventDefault(); // Prevent default file opening in browser
-            event.stopPropagation();
-            markdownInput.classList.remove('drag-over-bg'); // Remove visual feedback
-
-            const files = event.dataTransfer.files;
-            if (files.length > 0) {
-                const file = files[0];
-                if (file.type === 'text/markdown' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
-                    readFileIntoEditor(file, file.name); // Pass filename for drag and drop
-                } else {
-                    alert('Please drop a Markdown (.md) or text (.txt) file.');
+            // Add event listener for file input change
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    readFileIntoEditor(file, file.name);
                 }
+            });
+
+            // Add event listener for download button click
+            downloadButton.addEventListener('click', () => {
+                const markdownText = markdownInput.value;
+                const blob = new Blob([markdownText], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const currentFilename = editorTitle.textContent;
+                a.download = currentFilename.endsWith('.md') || currentFilename.endsWith('.txt') ? currentFilename : currentFilename + '.md';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+
+            // Add event listener for copy markdown button click
+            copyMarkdownButton.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(markdownInput.value);
+                    alert('Markdown copied to clipboard!');
+                } catch (err) {
+                    console.error('Failed to copy markdown: ', err);
+                    alert('Failed to copy markdown to clipboard.');
+                }
+            });
+
+            // Add event listener for copy preview button click
+            copyPreviewButton.addEventListener('click', async () => {
+                try {
+                    const htmlContent = htmlOutput.innerHTML;
+                    const blob = new Blob([htmlContent], { type: 'text/html' });
+                    const clipboardItem = new ClipboardItem({ 'text/html': blob });
+                    await navigator.clipboard.write([clipboardItem]);
+                    alert('Preview HTML copied to clipboard!');
+                } catch (err) {
+                    console.error('Failed to copy preview: ', err);
+                    alert('Failed to copy preview HTML to clipboard.');
+                }
+            });
+
+            // Add event listener for export DOCX button click
+            exportDocxButton.addEventListener('click', async () => {
+                const markdownText = markdownInput.value;
+                if (!markdownText.trim()) {
+                    alert('변환할 마크다운 내용이 없습니다.');
+                    return;
+                }
+
+                try {
+                    // 로딩 인디케이터 표시 (선택 사항)
+                    exportDocxButton.textContent = '변환 중...';
+                    exportDocxButton.disabled = true;
+
+                    const response = await fetch('/convert-markdown-to-docx', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            markdown_text: markdownText,
+                            save_images_to_disk: false // 필요에 따라 true로 변경하거나 UI 옵션을 추가할 수 있습니다.
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'DOCX 변환에 실패했습니다.');
+                    }
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = editorTitle.textContent.replace(/\.[^/.]+$/, "") + '.docx'; // 파일명 자동 생성
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+
+                    alert('DOCX 파일이 성공적으로 생성되었습니다!');
+
+                } catch (error) {
+                    console.error('DOCX 변환 오류: ', error);
+                    alert('DOCX 변환 중 오류가 발생했습니다: ' + error.message);
+                } finally {
+                    exportDocxButton.textContent = 'Export to DOCX';
+                    exportDocxButton.disabled = false;
+                }
+            });
+
+            // Function to read file content and update editor
+            function readFileIntoEditor(file, filename = 'Markdown Live Editor') {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    markdownInput.value = e.target.result;
+                    renderMarkdown();
+                    editorTitle.textContent = filename; // Update title with filename
+                };
+                reader.readAsText(file);
             }
+
+            // Drag and Drop functionality
+            markdownInput.addEventListener('dragover', (event) => {
+                event.preventDefault(); // Prevent default to allow drop
+                event.stopPropagation();
+                markdownInput.classList.add('drag-over-bg'); // Visual feedback
+            });
+
+            markdownInput.addEventListener('dragleave', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                markdownInput.classList.remove('drag-over-bg'); // Remove visual feedback
+            });
+
+            markdownInput.addEventListener('drop', (event) => {
+                event.preventDefault(); // Prevent default file opening in browser
+                event.stopPropagation();
+                markdownInput.classList.remove('drag-over-bg'); // Remove visual feedback
+
+                const files = event.dataTransfer.files;
+                if (files.length > 0) {
+                    const file = files[0];
+                    if (file.type === 'text/markdown' || file.type === 'text/plain' || file.name.endsWith('.md') || file.name.endsWith('.txt')) {
+                        readFileIntoEditor(file, file.name); // Pass filename for drag and drop
+                    } else {
+                        alert('Please drop a Markdown (.md) or text (.txt) file.');
+                    }
+                }
+            });
+
+            // Synchronized Scrolling
+            let isSyncScrolling = false;
+
+            function syncScroll(scrolledElement, targetElement) {
+                if (isSyncScrolling) return;
+                isSyncScrolling = true;
+
+                const scrollPercentage = scrolledElement.scrollTop / (scrolledElement.scrollHeight - scrolledElement.clientHeight);
+                targetElement.scrollTop = scrollPercentage * (targetElement.scrollHeight - targetElement.clientHeight);
+
+                // Reset the flag after a short delay to allow the browser to process the scroll
+                setTimeout(() => {
+                    isSyncScrolling = false;
+                }, 50);
+            }
+
+            markdownInput.addEventListener('scroll', () => syncScroll(markdownInput, htmlOutput));
+            htmlOutput.addEventListener('scroll', () => syncScroll(htmlOutput, markdownInput));
+
+            // Add event listener for pasting rich text (HTML) into markdownInput
+            markdownInput.addEventListener('paste', (event) => {
+                const clipboardData = event.clipboardData || window.clipboardData;
+                const html = clipboardData.getData('text/html');
+
+                if (html) {
+                    event.preventDefault(); // Prevent default paste behavior
+                    const markdown = turndownService.turndown(html);
+                    
+                    // Get current cursor position
+                    const start = markdownInput.selectionStart;
+                    const end = markdownInput.selectionEnd;
+
+                    // Insert markdown at cursor position
+                    markdownInput.value = markdownInput.value.substring(0, start) +
+                                        markdown +
+                                        markdownInput.value.substring(end);
+                    
+                    // Move cursor to the end of the pasted content
+                    markdownInput.selectionStart = markdownInput.selectionEnd = start + markdown.length;
+
+                    renderMarkdown();
+                }
+                // If no HTML data, let the default paste behavior handle it (e.g., plain text)
+            });
+
+            // Initial state: markdown panel is empty
+            // No initial render on page load, as per user request
         });
-
-        // Synchronized Scrolling
-        let isSyncScrolling = false;
-
-        function syncScroll(scrolledElement, targetElement) {
-            if (isSyncScrolling) return;
-            isSyncScrolling = true;
-
-            const scrollPercentage = scrolledElement.scrollTop / (scrolledElement.scrollHeight - scrolledElement.clientHeight);
-            targetElement.scrollTop = scrollPercentage * (targetElement.scrollHeight - targetElement.clientHeight);
-
-            // Reset the flag after a short delay to allow the browser to process the scroll
-            setTimeout(() => {
-                isSyncScrolling = false;
-            }, 50);
-        }
-
-        markdownInput.addEventListener('scroll', () => syncScroll(markdownInput, htmlOutput));
-        htmlOutput.addEventListener('scroll', () => syncScroll(htmlOutput, markdownInput));
-
-        // Initial state: markdown panel is empty
-        // No initial render on page load, as per user request
     </script>
 
 </body>

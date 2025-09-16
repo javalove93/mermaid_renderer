@@ -58,3 +58,9 @@ node_modules/
 
 # Tailwind CSS build
 static/css/output.css 
+
+
+downloaded_images/
+test_*
+copy_to_gcs.sh
+words*.txt

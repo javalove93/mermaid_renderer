@@ -16,7 +16,7 @@ touch "$LOCK_FILE"
 trap 'rm -f "$LOCK_FILE"; exit' EXIT
 
 # 변경 감지 후 대기 시간 (초)
-WAIT_TIME=10
+WAIT_TIME=30
 
 echo "Mermaid Renderer CI/CD 시작 - 파일 변경 감지 중..."
 
@@ -29,8 +29,8 @@ is_deployment_related() {
         "Dockerfile"
         "app.py"
         "requirements.txt"
-        "^templates/.*\.html$"
-        "^static/.*\.(css|js)$"
+        ".*/templates/.*\.html$"
+        ".*/static/.*\.(css|js)$"
     )
     
     # 각 패턴에 대해 확인
