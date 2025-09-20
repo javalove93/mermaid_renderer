@@ -1,0 +1,328 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Dictionary</title>
+    <style>
+        body { display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; min-height: 100vh; margin: 0; background-color: #f0f0f0; }
+        canvas { border: 2px solid #ccc; background-color: #fff; }
+        button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #geminiAnswerDisplay {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            white-space: pre-wrap; /* 줄 바꿈 유지 */
+            word-wrap: break-word; /* 긴 단어 줄 바꿈 */
+            max-width: 90%; /* 최대 너비 설정 */
+            text-align: left;
+            color: #333;
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="myCanvas"></canvas>
+    
+    <div style="display: flex; margin-top: 10px; justify-content: flex-end;">
+        <button id="pasteButton">클립보드에서 붙여넣기</button>
+        <button id="askGeminiButton" style="margin-left: 10px;">Ask to Gemini</button>
+    </div>
+    <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+
+    <div id="geminiAnswerDisplay"></div>
+
+    <script>
+        const canvas = document.getElementById('myCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const button = document.getElementById('pasteButton');
+            const buttonHeight = button ? button.offsetHeight : 0;
+            const buttonMarginTop = button ? parseInt(window.getComputedStyle(button).marginTop) : 0;
+            const bottomMargin = window.innerHeight * 0.30; // 화면 높이의 30%
+            const totalReservedSpace = buttonHeight + buttonMarginTop + bottomMargin;
+
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight - totalReservedSpace;
+            drawVisibleImage(); // 캔버스 크기 변경 후 이미지 다시 그리기
+        }
+
+        // Set initial canvas size (can be adjusted or made dynamic)
+        // canvas.width = window.innerWidth * 0.8;
+        // canvas.height = window.innerHeight * 0.8;
+
+        // 페이지 로드 시 및 창 크기 변경 시 캔버스 크기 조정
+        window.addEventListener('load', resizeCanvas);
+        window.addEventListener('resize', resizeCanvas);
+
+        let image = null; // 현재 캔버스에 로드된 이미지 객체
+        let imageX = 0;   // 이미지의 현재 X 오프셋
+        let imageY = 0;   // 이미지의 현재 Y 오프셋
+        let imageScale = 1; // 이미지의 현재 배율
+        let lastTouchDistance = 0; // 두 손가락 핀치 줌을 위한 초기 거리
+        let isPinching = false; // 핀치 줌 중인지 여부
+        let lastPinchCenter = { x: 0, y: 0 }; // 핀치 줌의 중심점
+
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+
+        function draw(e) {
+            if (!isDrawing) return;
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function drawVisibleImage() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // 이미지 로드 시 그리기 스타일 재설정
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 3;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            if (image) {
+                const scaledWidth = image.width * imageScale;
+                const scaledHeight = image.height * imageScale;
+                ctx.drawImage(image, imageX, imageY, scaledWidth, scaledHeight);
+            }
+        }
+
+        function fitImageToCanvas(img) {
+            const hRatio = canvas.width / img.width;
+            const vRatio = canvas.height / img.height;
+            imageScale = Math.min(hRatio, vRatio); // 이미지와 캔버스 중 더 작은 비율에 맞춰 스케일 조정
+
+            // 캔버스 중앙에 이미지 위치시키기
+            imageX = (canvas.width - img.width * imageScale) / 2;
+            imageY = (canvas.height - img.height * imageScale) / 2;
+            image = img; // 이미지 객체 저장
+        }
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // 기본 스크롤 동작 방지
+            if (!image) return; // 이미지가 없으면 터치 이벤트 처리 안 함
+
+            if (e.touches.length === 2) {
+                isPinching = true;
+                lastTouchDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                lastPinchCenter.x = (e.touches[0].pageX + e.touches[1].pageX) / 2 - canvas.offsetLeft;
+                lastPinchCenter.y = (e.touches[0].pageY + e.touches[1].pageY) / 2 - canvas.offsetTop;
+            } else if (e.touches.length === 1) {
+                isDrawing = true; // 한 손가락 터치 시 그리기 활성화
+                [lastX, lastY] = [e.touches[0].pageX - canvas.offsetLeft, e.touches[0].pageY - canvas.offsetTop];
+            }
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        });
+
+        function handlePaste(event) {
+            const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            fitImageToCanvas(img); // 새 함수 호출
+                            drawVisibleImage();
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(blob);
+                    break;
+                }
+            }
+        }
+
+        canvas.addEventListener('mousemove', draw);
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // 기본 스크롤 동작 방지
+            if (!image) return; // 이미지가 없으면 터치 이벤트 처리 안 함
+
+            if (e.touches.length === 2 && isPinching) {
+                const currentTouchDistance = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                const scaleFactor = currentTouchDistance / lastTouchDistance;
+                const oldScale = imageScale;
+                imageScale *= scaleFactor;
+
+                // 핀치 중심점을 기준으로 이미지 위치 조정 (줌)
+                const newPinchCenterX = (e.touches[0].pageX + e.touches[1].pageX) / 2 - canvas.offsetLeft;
+                const newPinchCenterY = (e.touches[0].pageY + e.touches[1].pageY) / 2 - canvas.offsetTop;
+
+                // 패닝 계산 (핀치 중심점의 이동)
+                const panX = newPinchCenterX - lastPinchCenter.x;
+                const panY = newPinchCenterY - lastPinchCenter.y;
+
+                imageX += panX; // 패닝 적용
+                imageY += panY; // 패닝 적용
+
+                // 줌 중심점을 기준으로 이미지 위치 조정 (이전에 적용된 패닝을 고려)
+                imageX = newPinchCenterX - ((newPinchCenterX - imageX) * (imageScale / oldScale));
+                imageY = newPinchCenterY - ((newPinchCenterY - imageY) * (imageScale / oldScale));
+
+                lastPinchCenter.x = newPinchCenterX; // 다음 이벤트를 위해 중심점 업데이트
+                lastPinchCenter.y = newPinchCenterY; // 다음 이벤트를 위해 중심점 업데이트
+                lastTouchDistance = currentTouchDistance;
+                drawVisibleImage();
+
+            } else if (e.touches.length === 1 && !isPinching) {
+                // 한 손가락 이동 (패닝)
+                if (isDrawing) {
+                    // 그리기 모드일 경우 기존 draw 함수 호출
+                    draw({
+                        offsetX: e.touches[0].pageX - canvas.offsetLeft,
+                        offsetY: e.touches[0].pageY - canvas.offsetTop
+                    });
+                }
+                // 현재는 그리기 모드 외의 한 손가락 패닝은 구현하지 않음. 필요시 여기에 추가
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('mouseout', () => isDrawing = false);
+
+        canvas.addEventListener('touchend', () => {
+            isDrawing = false;
+            isPinching = false;
+            lastTouchDistance = 0;
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // alert 대신 메시지 div를 사용하여 지침 표시
+            // alert('여기에 이미지를 붙여넣으세요 (Ctrl+V 또는 Cmd+V). 그리고 캔버스에 그림을 그릴 수 있습니다.');
+        });
+
+        document.addEventListener('paste', handlePaste);
+
+        const pasteButton = document.getElementById('pasteButton');
+        const imageUpload = document.getElementById('imageUpload');
+        const geminiAnswerDisplay = document.getElementById('geminiAnswerDisplay');
+
+        pasteButton.addEventListener('click', async () => {
+            try {
+                const clipboardItems = await navigator.clipboard.read();
+                let imagePasted = false;
+                for (const clipboardItem of clipboardItems) {
+                    for (const type of clipboardItem.types) {
+                        if (type.startsWith('image/')) {
+                            const blob = await clipboardItem.getType(type);
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                const img = new Image();
+                                img.onload = () => {
+                                    image = img; // 이미지 객체 저장
+                                    imageX = 0; // 초기 위치
+                                    imageY = 0; // 초기 위치
+                                    imageScale = 1; // 초기 배율
+                                    drawVisibleImage(); // 새로 정의될 함수
+                                };
+                                img.src = e.target.result;
+                            };
+                            reader.readAsDataURL(blob);
+                            return; // Only paste the first image found
+                        }
+                    }
+                }
+                if (!imagePasted) {
+                    // 클립보드에 이미지가 없으면 파일 업로드 대화 상자 열기
+                    imageUpload.click();
+                }
+            } catch (err) {
+                console.error('클립보드에서 이미지 붙여넣기 실패:', err);
+                imageUpload.click(); // 에러 발생 시에도 파일 업로드 대화 상자 열기
+            }
+        });
+
+        imageUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        fitImageToCanvas(img); // 새 함수 호출
+                        drawVisibleImage();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        const askGeminiButton = document.getElementById('askGeminiButton');
+        askGeminiButton.addEventListener('click', async () => {
+            geminiAnswerDisplay.textContent = '질문 중...'; // 새로운 요청 시 메시지 초기화
+            if (!image) {
+                geminiAnswerDisplay.textContent = '캔버스에 이미지가 없습니다. 이미지를 붙여넣거나 업로드해주세요.';
+                return;
+            }
+
+            const imageDataUrl = canvas.toDataURL('image/png');
+
+            try {
+                const response = await fetch('/ask_to_gemini', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_data_url: imageDataUrl,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    geminiAnswerDisplay.textContent = `Gemini API 호출 실패: ${errorData.error || response.statusText}`;
+                    console.error('Gemini API Error:', errorData);
+                    return;
+                }
+
+                const result = await response.json();
+                geminiAnswerDisplay.textContent = 'Gemini의 답변:\n' + result.answer;
+
+            } catch (error) {
+                console.error('Error calling Gemini API:', error);
+                geminiAnswerDisplay.textContent = 'Gemini API 호출 중 오류가 발생했습니다.';
+            }
+        });
+
+    </script>
+</body>
+</html>

@@ -4,3 +4,5 @@ gunicorn
 google-cloud-storage
 python-docx
 Pillow
+google-genai
+python-dotenv

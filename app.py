@@ -5,6 +5,12 @@ from flask import Flask, request, jsonify, render_template, send_from_directory,
 import base64
 from google.cloud import storage
 from convert_to_docs import MarkdownToDocxConverter # MarkdownToDocxConverter 임포트
+from google import genai
+from PIL import Image
+import io
+from dotenv import load_dotenv
+
+load_dotenv() # .env 파일 로드
 
 app = Flask(__name__, 
     template_folder='templates',
@@ -52,6 +58,11 @@ def markdown_editor():
 def english_word():
     """Serves the English word learning HTML page."""
     return render_template('english_word.html')
+
+@app.route('/visualdic')
+def visual_dictionary():
+    """Serves the visual dictionary HTML page."""
+    return render_template('visual_dictionary.html')
 
 @app.route('/words', methods=['GET'])
 def get_words():
@@ -170,10 +181,12 @@ def save_gist():
         print(f"Unexpected error during Gist creation: {traceback.format_exc()}") # 전체 트레이스백 로그 기록
         return jsonify({'error': 'An unexpected server error occurred during Gist creation.'}), 500
 
+# this function intentionally use apikey parameter. never remove this code.
 @app.route('/chat-with-diagram', methods=['POST'])
 def chat_with_diagram():
     """다이어그램에 대해 Gemini와 대화하는 엔드포인트"""
     data = request.get_json()
+    # this function intentionally use apikey parameter. never remove this code or never get a key from server.
     api_key = data.get('api_key')
     diagram = data.get('diagram')
     question = data.get('question')
@@ -222,6 +235,47 @@ def chat_with_diagram():
             return jsonify({'error': 'Gemini API로부터 유효한 응답을 받지 못했습니다.'}), 500
 
     except Exception as e:
+        return jsonify({'error': f'서버 오류: {str(e)}'}), 500
+
+@app.route('/ask_to_gemini', methods=['POST'])
+def ask_to_gemini():
+    """캔버스 이미지를 사용하여 Gemini에게 질문하는 엔드포인트"""
+    data = request.get_json()
+    # api_key = data.get('api_key') # API 키는 서버 환경 변수에서 가져옴
+    gemini_api_key = os.environ.get('GEMINI_API_KEY')
+    image_data_url = data.get('image_data_url')
+    # question = data.get('question') # 질문은 서버에서 정의
+
+    # 질문 프롬프트는 서버에서 직접 정의
+    question_prompt = """explain the meaning that is 
+pointed by red color rectangle, circle or underscore. answer to only one part.
+if it's text, translated into korean explanation. as simple as possible.
+if it's image explain the image. as simple as possible.
+"""
+
+    if not all([gemini_api_key, image_data_url]): # question은 이제 서버에서 정의되므로 검사에서 제외
+        return jsonify({'error': '필수 파라미터가 누락되었습니다. (API 키, 이미지)'}), 400
+
+    try:
+        client = genai.Client(api_key=gemini_api_key)
+
+        # Base64 이미지 데이터 디코딩
+        header, encoded = image_data_url.split(",", 1)
+        image_data = base64.b64decode(encoded)
+        image = Image.open(io.BytesIO(image_data))
+
+        # Gemini API 호출
+        response = client.models.generate_content(model='gemini-2.5-flash', contents=[question_prompt, image])
+
+        if response.text:
+            answer = response.text
+            return jsonify({'answer': answer})
+        else:
+            return jsonify({'error': 'Gemini API로부터 유효한 응답을 받지 못했습니다.'}), 500
+
+    except Exception as e:
+        import traceback
+        print(f"Gemini API 호출 중 오류 발생: {traceback.format_exc()}")
         return jsonify({'error': f'서버 오류: {str(e)}'}), 500
 
 @app.route('/convert-markdown-to-docx', methods=['POST'])

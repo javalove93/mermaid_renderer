@@ -12,6 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the Flask app and templates directory into the container at /app
 COPY app.py .
+COPY .env .
 COPY convert_to_docs.py .
 COPY templates/ /app/templates/
 COPY static/ /app/static/
