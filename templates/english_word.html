@@ -193,14 +193,9 @@
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
     <div id="quiz-container" class="container">
+        <button id="word-list-button" class="absolute top-4 left-4 bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm font-semibold shadow hover:bg-gray-300 transition-colors duration-200">단어목록</button>
         <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">단어 퀴즈</h1>
         
-        <!-- API Key Input Field -->
-        <div class="mb-6 flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2">
-            <input type="text" id="api-key-input" class="w-full sm:flex-grow p-2 border border-gray-300 rounded-lg text-sm" placeholder="여기에 Gemini API 키를 입력하세요..." autocomplete="off">
-            <button id="save-key-btn" class="btn btn-blue w-full sm:w-auto p-2 text-sm">키 저장</button>
-        </div>
-
         <!-- Loading overlay -->
         <div id="loading-overlay" class="loading-overlay" style="display: none;">
             <div class="loading-spinner"></div>
@@ -268,19 +263,26 @@
         let words = '';
 
         // Function to load words from backend
-        async function loadWords() {
+        async function loadWords(title) {
+            // Only load if 'words' is currently empty (initial load or after reload)
+            // if (words && (typeof words === 'string' && words.length > 0 || Array.isArray(words) && words.length > 0)) return true;
+            
+            showLoading(true); // 로딩 스피너 표시
             try {
-                const response = await fetch('/words');
+                // const defaultWordbookTitle = '까먹은 단어'; // Default wordbook name
+                const response = await fetch(`/words_json?title=${encodeURIComponent(title)}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
-                words = data.words;
+                words = data; // words is now the JSON object itself, not data.words
                 return true;
             } catch (error) {
-                console.error('Failed to load words:', error);
-                createModal("오류", "단어 목록을 불러오는데 실패했습니다. 페이지를 새로고침해 주세요.");
+                console.error(`Failed to load words from /words_json with title "${title}":`, error);
+                createModal("오류", `단어 목록("${title}")을 불러오는데 실패했습니다. 페이지를 새로고침해 주세요.`);
                 return false;
+            } finally {
+                showLoading(false); // 로딩 스피너 숨김
             }
         }
 
@@ -320,7 +322,7 @@
             modal.innerHTML = `
                 <div class="modal-content !max-w-xl">
                     <h2 class="text-2xl font-bold mb-2">${title}</h2>
-                    <p class="text-base text-gray-600 mb-4 whitespace-pre-wrap">${message}</p>
+                    <div class="text-base text-gray-600 mb-4 whitespace-pre-wrap text-left w-full flex flex-wrap gap-2">${message}</div>
                     <div class="flex justify-center space-x-4">
                         ${buttonsHTML}
                     </div>
@@ -353,13 +355,13 @@
         let incorrectWords = [];
         let allWords = [];
         let usedWords = []; // Track which words have been used in current round
-        const model = 'gemini-2.5-flash-lite'; // Gemini API model
+
+        let recognition = null; // Declare recognition globally
+        let isListening = false; // Track listening state
 
         const quizContainer = document.getElementById('quiz-container');
         const quizInterface = document.getElementById('quiz-interface');
         const loadingOverlay = document.getElementById('loading-overlay');
-        const apiKeyInput = document.getElementById('api-key-input');
-        const saveKeyBtn = document.getElementById('save-key-btn');
         const wordElement = document.getElementById('word');
         const pronunciationElement = document.getElementById('pronunciation');
         const answerInput = document.getElementById('answer-input');
@@ -385,79 +387,93 @@
         const aiQuestionBtn = document.getElementById('ai-question-btn');
         const aiAnswerDisplay = document.getElementById('ai-answer-display');
 
-        // Load API key from localStorage on initial load
-        let apiKey = localStorage.getItem('gemini-api-key') || "";
-        if (apiKey) {
-            apiKeyInput.value = apiKey;
-        }
-
-        async function startQuiz() {
+        async function startQuiz(title) {
             if (!words) {
-                const loaded = await loadWords();
+                const loaded = await loadWords(title);
                 if (!loaded) return;
             }
             
-            // Parse words and create wordPairs
-            const lines = words.split('\n');
             const wordPairs = [];
-            let currentWord = null;
-            let currentKorean = '';
             
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue; // Skip empty lines
+            if (typeof words === 'string') {
+                console.log("DEBUG: words is a string. Length:", words.length);
+                // Existing logic for plain text words (from words.txt)
+                const lines = words.split('\n');
+                let currentWord = null;
+                let currentKorean = '';
                 
-                // Check if this line starts a new word (contains ':')
-                if (line.includes(':')) {
-                    // Save previous word if exists
-                    if (currentWord && currentKorean) {
-                        wordPairs.push({
-                            english: removeDiacritics(currentWord.trim()),
-                            korean: currentKorean.trim().replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim()
-                        });
-                    }
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue; // Skip empty lines
                     
-                    // Start new word
-                    const colonIndex = line.indexOf(':');
-                    currentWord = line.substring(0, colonIndex);
-                    const koreanPart = line.substring(colonIndex + 1).trim();
-                    
-                    if (koreanPart) {
-                        // Single line format
-                        currentKorean = koreanPart;
-                    } else {
-                        // Multi-line format, collect following lines
-                        currentKorean = '';
-                        i++; // Move to next line
-                        while (i < lines.length) {
-                            const nextLine = lines[i].trim();
-                            if (!nextLine) {
-                                i--; // Go back to empty line
-                                break;
-                            }
-                            if (nextLine.includes(':') && !nextLine.match(/^\d+\./)) {
-                                i--; // This is a new word, go back
-                                break;
-                            }
-                            
-                            // Remove numbering (1., 2., etc.) and add to korean
-                            const cleanLine = nextLine.replace(/^\d+\.\s*/, '');
-                            if (cleanLine) {
-                                if (currentKorean) currentKorean += '; ';
-                                currentKorean += cleanLine;
-                            }
+                    if (line.includes(':')) {
+                        if (currentWord && currentKorean) {
+                            wordPairs.push({
+                                english: removeDiacritics(currentWord.trim()),
+                                korean: currentKorean.trim().replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim()
+                            });
+                        }
+                        
+                        const colonIndex = line.indexOf(':');
+                        currentWord = line.substring(0, colonIndex);
+                        const koreanPart = line.substring(colonIndex + 1).trim();
+                        
+                        if (koreanPart) {
+                            currentKorean = koreanPart;
+                        } else {
+                            currentKorean = '';
                             i++;
+                            while (i < lines.length) {
+                                const nextLine = lines[i].trim();
+                                if (!nextLine) {
+                                    i--;
+                                    break;
+                                }
+                                if (nextLine.includes(':') && !nextLine.match(/^\d+\./)) {
+                                    i--;
+                                    break;
+                                }
+                                
+                                const cleanLine = nextLine.replace(/^\d+\.\s*/, '');
+                                if (cleanLine) {
+                                    if (currentKorean) currentKorean += '; ';
+                                    currentKorean += cleanLine;
+                                }
+                                i++;
+                            }
                         }
                     }
                 }
-            }
-            
-            // Don't forget the last word
-            if (currentWord && currentKorean) {
-                wordPairs.push({
-                    english: removeDiacritics(currentWord.trim()),
-                    korean: currentKorean.trim().replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim()
+                
+                if (currentWord && currentKorean) {
+                    wordPairs.push({
+                        english: removeDiacritics(currentWord.trim()),
+                        korean: currentKorean.trim().replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim()
+                    });
+                }
+            } else if (Array.isArray(words)) {
+                // New logic for JSON array words (from /words_json)
+                console.log("DEBUG: words is an array. Length:", words.length);
+                words.forEach((wordEntry, index) => {
+                    console.log(`DEBUG: Processing wordEntry ${index}:`, wordEntry);
+                    // Add more detailed checks and logs
+                    const englishContent = wordEntry.english && wordEntry.english.length > 0 ? wordEntry.english[0] : 'N/A';
+                    const koreanContent = (wordEntry.korean && Array.isArray(wordEntry.korean[0]) && wordEntry.korean[0].length > 0) ? wordEntry.korean[0][0] : 'N/A';
+                    console.log(`DEBUG: wordEntry ${index} - English: "${englishContent}", Korean: "${koreanContent}"`);
+                    
+                    if (wordEntry.english && wordEntry.english.length > 0 && wordEntry.korean && Array.isArray(wordEntry.korean[0]) && wordEntry.korean[0].length > 0) {
+                        wordPairs.push({
+                            english: removeDiacritics(wordEntry.english[0].trim()),
+                            korean: wordEntry.korean[0][0].trim().replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim()
+                        });
+                    } else {
+                        console.warn(`WARN: Skipping wordEntry ${index} due to missing English or Korean content or invalid Korean format:`, wordEntry);
+                    }
                 });
+            } else {
+                console.error("Invalid words format:", words);
+                createModal("오류", "단어 형식이 올바르지 않습니다.");
+                return;
             }
             
             allWords = [...wordPairs];
@@ -585,12 +601,7 @@
                 createModal("입력 오류", "답을 입력해 주세요.");
                 return;
             }
-
-            if (!apiKey) {
-                createModal("API 키 오류", "Gemini API 키를 먼저 입력하고 저장해 주세요.");
-                return;
-            }
-
+            
             const currentWord = shuffledWords[currentQuestionIndex];
             const correctAnswers = currentWord.korean;
 
@@ -604,74 +615,68 @@
             hintDisplayDiv.style.display = 'none';
             showLoading(true);
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-            let similarity_score = 0;
-            let justification = "";
-
             try {
-                const prompt = `당신은 영어 단어 전문가입니다. 사용자는 영단어 '${currentWord.english}'의 뜻을 '${userAnswer}'라고 입력했습니다. 정답은 '${correctAnswers}'입니다. 사용자의 답과 정답이 얼마나 유사한지 0에서 100점 사이의 점수로 평가하고 그 점수와 간단한 이유를 한국어로 설명해 주세요. 예를 들어 '95. 의미가 매우 유사합니다.'와 같이 답변해주세요. 단, 답변은 점수와 이유로만 구성되어야 합니다.`;
-                const response = await fetch(apiUrl, {
+                const response = await fetch('/evaluate_answer', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        systemInstruction: { parts: [{ text: '한국어로 답변해 주세요.' }] },
-                    })
+                        user_answer: userAnswer,
+                        english: currentWord.english,
+                        korean: currentWord.korean,
+                    }),
                 });
-                
+
                 if (!response.ok) {
                     const errorData = await response.json();
-                    console.error('Gemini API 호출 실패:', response.status, response.statusText, errorData);
+                    console.error('Backend API 호출 실패:', response.status, response.statusText, errorData);
                     throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`);
                 }
 
                 const result = await response.json();
-                const llm_response = result.candidates[0].content.parts[0].text;
-                
-                const match = llm_response.match(/(\d+)\. (.*)/);
-                if (match) {
-                    similarity_score = parseInt(match[1], 10);
-                    justification = match[2];
+                const similarity_score = result.similarity_score;
+                const justification = result.justification;
+
+                // Determine correctness based on similarity score
+                const CORRECTNESS_THRESHOLD = 70;
+                let correctnessMessage = "";
+                let resultClass = "";
+
+                if (similarity_score >= CORRECTNESS_THRESHOLD) {
+                    correctnessMessage = '정답입니다!';
+                    resultClass = 'bg-green-100 text-green-800';
+                    score++;
+                } else {
+                    correctnessMessage = '오답입니다.';
+                    resultClass = 'bg-red-100 text-red-800';
+                    incorrectWords.push(currentWord); // Push the whole object
                 }
 
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'w-full p-4 rounded-lg text-center ' + resultClass;
+                resultMessage.textContent = correctnessMessage;
+                similarityScore.textContent = `유사도: ${similarity_score}점. (${justification})`;
+                correctAnswerElement.textContent = `정답: ${currentWord.korean}`;
+
             } catch (error) {
-                console.error("Gemini API 호출 중 오류 발생:", error);
-                justification = "유사도 판단에 문제가 발생했습니다.";
-                similarity_score = 0;
+                console.error("Backend API 호출 중 오류 발생:", error);
+                resultDiv.style.display = 'block';
+                resultDiv.classList.add('bg-red-100', 'text-red-800');
+                resultMessage.textContent = '오답입니다.';
+                similarityScore.textContent = '유사도 판단에 문제가 발생했습니다.';
+                correctAnswerElement.textContent = `정답: ${currentWord.korean}`;
+                incorrectWords.push(currentWord); // Push the whole object
             } finally {
                 showLoading(false);
             }
 
             similarBtn.style.display = 'block';
             nextBtn.style.display = 'block';
-            resultDiv.style.display = 'block';
             aiQuestionArea.style.display = 'block';
-            
-            const CORRECTNESS_THRESHOLD = 70;
-
-            if (similarity_score >= CORRECTNESS_THRESHOLD) {
-                resultDiv.classList.add('bg-green-100', 'text-green-800');
-                resultDiv.classList.remove('bg-red-100', 'text-red-800');
-                resultMessage.textContent = '정답입니다!';
-                score++;
-            } else {
-                resultDiv.classList.add('bg-red-100', 'text-red-800');
-                resultDiv.classList.remove('bg-green-100', 'text-green-800');
-                resultMessage.textContent = '오답입니다.';
-                incorrectWords.push(currentWord); // Push the whole object
-            }
-            
-            similarityScore.textContent = `유사도: ${similarity_score}점. (${justification})`;
-            correctAnswerElement.textContent = `정답: ${currentWord.korean}`;
         }
 
         async function getHint() {
-            if (!apiKey) {
-                createModal("API 키 오류", "Gemini API 키를 먼저 입력하고 저장해 주세요.");
-                return;
-            }
-
             const currentWord = shuffledWords[currentQuestionIndex];
             
             // Add current word to used words
@@ -687,31 +692,27 @@
             
             showLoading(true);
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
             let hintMessage = "";
 
             try {
-                const prompt = `영단어 '${currentWord.english}'에 대한 뜻을 직접적으로 밝히지 않는 한 문장짜리 한국어 힌트를 제공해주세요. 예를 들어, 관련 단어나 짧은 예문을 제시하거나 단어의 분위기를 설명해 주세요. 답변은 한 문장으로만 구성되어야 합니다.`;
-                const response = await fetch(apiUrl, {
+                const response = await fetch('/generate_hint', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        systemInstruction: { parts: [{ text: '당신은 사용자의 영어 공부를 도와주는 친절한 튜터입니다. 한국어로 응답해 주세요.' }] },
-                    })
+                        english: currentWord.english,
+                    }),
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    console.error('Gemini API 호출 실패:', response.status, response.statusText, errorData);
+                    console.error('Backend API 호출 실패:', response.status, response.statusText, errorData);
                     throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`);
                 }
                 
                 const result = await response.json();
-                hintMessage = result.candidates[0].content.parts[0].text;
+                hintMessage = result.hint_message;
             } catch (error) {
-                console.error("Gemini API 호출 중 오류 발생:", error);
+                console.error("Backend API 호출 중 오류 발생:", error);
                 hintMessage = "죄송합니다. 힌트를 생성하는 데 문제가 발생했습니다.";
             } finally {
                 showLoading(false);
@@ -746,11 +747,6 @@
         }
 
         async function showExampleSentence() {
-            if (!apiKey) {
-                createModal("API 키 오류", "Gemini API 키를 먼저 입력하고 저장해 주세요.");
-                return;
-            }
-
             const currentWord = shuffledWords[currentQuestionIndex];
             
             // Add current word to used words
@@ -765,31 +761,28 @@
             
             showLoading(true);
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
             let exampleSentence = "";
 
             try {
-                const prompt = `영단어 '${currentWord.english}'의 뜻은 '${currentWord.korean}'입니다. 이 단어를 사용한 간단하고 이해하기 쉬운 영어 예문을 하나 만들어주세요. 예문은 한 문장으로만 작성하고, 한국어 번역도 함께 제공해주세요. 형식: "영어 예문 - 한국어 번역"`;
-                const response = await fetch(apiUrl, {
+                const response = await fetch('/generate_example', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        systemInstruction: { parts: [{ text: '당신은 사용자의 영어 공부를 도와주는 친절한 튜터입니다. 한국어로 응답해 주세요.' }] },
-                    })
+                        english: currentWord.english,
+                        korean: currentWord.korean,
+                    }),
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    console.error('Gemini API 호출 실패:', response.status, response.statusText, errorData);
+                    console.error('Backend API 호출 실패:', response.status, response.statusText, errorData);
                     throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`);
                 }
                 
                 const result = await response.json();
-                exampleSentence = result.candidates[0].content.parts[0].text;
+                exampleSentence = result.example_sentence;
             } catch (error) {
-                console.error("Gemini API 호출 중 오류 발생:", error);
+                console.error("Backend API 호출 중 오류 발생:", error);
                 exampleSentence = "죄송합니다. 예문을 생성하는 데 문제가 발생했습니다.";
             } finally {
                 showLoading(false);
@@ -830,47 +823,31 @@
             
             let llmMessage = "";
 
-            let prompt = `
-            이번 라운드에서 사용자는 ${totalWordsInRound}개 중 ${correctCount}개를 맞혔습니다.
-            이 점수에 맞는 격려 메시지를 한 문장으로 작성해 주세요.
-            `;
-            
-            if (incorrectWords.length > 0) {
-                prompt += `
-                사용자가 틀린 단어들은 다음과 같습니다: ${incorrectWords.map(w => w.english).join(', ')}.
-                이 단어들을 더 잘 이해할 수 있도록 각 단어에 대한 간결한 설명을 '단어: 설명' 형태로 제공해주세요.
-                `;
-            } else {
-                prompt += `
-                사용자가 모든 문제를 맞혔습니다! 전체 퀴즈가 성공적으로 끝났습니다. 축하 메시지를 작성해 주세요.
-                `;
-            }
-
             showLoading(true);
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-            let response;
             try {
-                response = await fetch(apiUrl, {
+                const incorrectWordsEnglish = incorrectWords.map(w => w.english);
+
+                const response = await fetch('/generate_round_summary', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        systemInstruction: { parts: [{ text: '당신은 사용자의 영어 공부를 도와주는 친절한 튜터입니다. 한국어로 응답해 주세요.' }] },
-                    })
+                        total_words_in_round: totalWordsInRound,
+                        correct_count: correctCount,
+                        incorrect_words_list: incorrectWordsEnglish,
+                    }),
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    console.error('Gemini API 호출 실패:', response.status, response.statusText, errorData);
+                    console.error('Backend API 호출 실패:', response.status, response.statusText, errorData);
                     throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`);
                 }
                 
                 const result = await response.json();
-                llmMessage = result.candidates[0].content.parts[0].text;
+                llmMessage = result.llm_message;
             } catch (error) {
-                console.error("Gemini API 호출 중 오류 발생:", error);
+                console.error("Backend API 호출 중 오류 발생:", error);
                 llmMessage = "죄송합니다. 메시지를 생성하는 데 문제가 발생했습니다.";
             } finally {
                 showLoading(false);
@@ -917,12 +894,7 @@
                 createModal("입력 오류", "질문을 입력해 주세요.");
                 return;
             }
-
-            if (!apiKey) {
-                createModal("API 키 오류", "Gemini API 키를 먼저 입력하고 저장해 주세요.");
-                return;
-            }
-
+            
             const currentWord = shuffledWords[currentQuestionIndex];
             
             aiQuestionBtn.disabled = true;
@@ -931,31 +903,29 @@
             
             showLoading(true);
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
             let aiAnswer = "";
 
             try {
-                const prompt = `영단어 '${currentWord.english}'의 뜻은 '${currentWord.korean}'입니다. 사용자가 "${question}"라고 질문했습니다. 이 질문에 대해 친절하고 도움이 되는 답변을 한국어로 제공해 주세요. 단어의 의미, 사용법, 예문, 어원 등에 대한 질문일 수 있습니다. 답변은 마크다운 형식으로 작성해 주세요. 제목은 ##, 소제목은 ###, 강조는 **굵게**, 예문은 > 인용문으로 표시해 주세요.`;
-                const response = await fetch(apiUrl, {
+                const response = await fetch('/ask_word_ai', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        systemInstruction: { parts: [{ text: '당신은 사용자의 영어 공부를 도와주는 친절한 튜터입니다. 한국어로 응답해 주세요.' }] },
-                    })
+                        english: currentWord.english,
+                        korean: currentWord.korean,
+                        question: question,
+                    }),
                 });
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    console.error('Gemini API 호출 실패:', response.status, response.statusText, errorData);
+                    console.error('Backend API 호출 실패:', response.status, response.statusText, errorData);
                     throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`);
                 }
                 
                 const result = await response.json();
-                aiAnswer = result.candidates[0].content.parts[0].text;
+                aiAnswer = result.ai_answer;
             } catch (error) {
-                console.error("Gemini API 호출 중 오류 발생:", error);
+                console.error("Backend API 호출 중 오류 발생:", error);
                 aiAnswer = "죄송합니다. 답변을 생성하는 데 문제가 발생했습니다.";
             } finally {
                 showLoading(false);
@@ -1004,8 +974,13 @@
                 return;
             }
 
+            if (isListening) {
+                recognition.stop();
+                return;
+            }
+
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            const recognition = new SpeechRecognition();
+            recognition = new SpeechRecognition();
             
             // Configure recognition
             recognition.lang = 'ko-KR'; // Korean language
@@ -1019,7 +994,8 @@
                     <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
                 </svg>
             `;
-            voiceInputBtn.disabled = true;
+            // voiceInputBtn.disabled = true; // 이 부분을 주석 처리하여 다시 클릭 가능하게 함
+            isListening = true;
 
             recognition.onstart = function() {
                 answerInput.placeholder = "listening...";
@@ -1049,25 +1025,31 @@
                 }
                 
                 createModal("음성 인식 오류", errorMessage);
+                resetVoiceInputUI(); // Reset UI on error
             };
 
             recognition.onend = function() {
-                // Reset button
-                voiceInputBtn.innerHTML = `
-                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
-                    </svg>
-                `;
-                voiceInputBtn.disabled = false;
-                
-                // Reset placeholder if no text was entered
-                if (!answerInput.value.trim()) {
-                    answerInput.placeholder = "한국어 뜻을 입력하세요...";
-                }
+                resetVoiceInputUI(); // Reset UI when recognition ends
             };
 
             // Start recognition
             recognition.start();
+        }
+
+        function resetVoiceInputUI() {
+            // Reset button
+            voiceInputBtn.innerHTML = `
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+                </svg>
+            `;
+            voiceInputBtn.disabled = false;
+            isListening = false;
+            
+            // Reset placeholder if no text was entered
+            if (!answerInput.value.trim()) {
+                answerInput.placeholder = "한국어 뜻을 입력하세요...";
+            }
         }
 
         function confirmReloadWords() {
@@ -1097,15 +1079,17 @@
         }
 
         async function reloadWords() {
+            const defaultWordbookTitle = '까먹은 단어';
             showLoading(true);
             
             try {
-                const response = await fetch('/words');
+                // const defaultWordbookTitle = '까먹은 단어'; // Always reload the default wordbook
+                const response = await fetch(`/words_json?title=${encodeURIComponent(defaultWordbookTitle)}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const data = await response.json();
-                words = data.words;
+                words = data; // words is now the JSON object itself, not data.words
                 
                 // Reset quiz state
                 shuffledWords = [];
@@ -1115,81 +1099,15 @@
                 usedWords = [];
                 allWords = [];
                 
-                // Parse words and create wordPairs
-                const lines = words.split('\n');
-                const wordPairs = [];
-                let currentWord = null;
-                let currentKorean = '';
-                
-                for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line) continue; // Skip empty lines
-                    
-                    // Check if this line starts a new word (contains ':')
-                    if (line.includes(':')) {
-                        // Save previous word if exists
-                        if (currentWord && currentKorean) {
-                            wordPairs.push({
-                                english: removeDiacritics(currentWord.trim()),
-                                korean: currentKorean.trim().replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim()
-                            });
-                        }
-                        
-                        // Start new word
-                        const colonIndex = line.indexOf(':');
-                        currentWord = line.substring(0, colonIndex);
-                        const koreanPart = line.substring(colonIndex + 1).trim();
-                        
-                        if (koreanPart) {
-                            // Single line format
-                            currentKorean = koreanPart;
-                        } else {
-                            // Multi-line format, collect following lines
-                            currentKorean = '';
-                            i++; // Move to next line
-                            while (i < lines.length) {
-                                const nextLine = lines[i].trim();
-                                if (!nextLine) {
-                                    i--; // Go back to empty line
-                                    break;
-                                }
-                                if (nextLine.includes(':') && !nextLine.match(/^\d+\./)) {
-                                    i--; // This is a new word, go back
-                                    break;
-                                }
-                                
-                                // Remove numbering (1., 2., etc.) and add to korean
-                                const cleanLine = nextLine.replace(/^\d+\.\s*/, '');
-                                if (cleanLine) {
-                                    if (currentKorean) currentKorean += '; ';
-                                    currentKorean += cleanLine;
-                                }
-                                i++;
-                            }
-                        }
-                    }
-                }
-                
-                // Don't forget the last word
-                if (currentWord && currentKorean) {
-                    wordPairs.push({
-                        english: removeDiacritics(currentWord.trim()),
-                        korean: currentKorean.trim().replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim()
-                    });
-                }
-                
-                allWords = [...wordPairs];
-                shuffledWords = shuffleArray(allWords);
-                currentQuestionIndex = 0;
-                incorrectWords = [];
-                usedWords = [];
+                // The startQuiz function now handles both string and array formats
+                await startQuiz(defaultWordbookTitle);
                 
                 createModal("단어 다시 로드 완료", `총 ${allWords.length}개의 단어를 다시 로드했습니다.`);
-                loadQuestion();
+                // loadQuestion() is called by startQuiz()
                 
             } catch (error) {
                 console.error('Failed to reload words:', error);
-                createModal("오류", "단어를 다시 로드하는데 실패했습니다. 페이지를 새로고침해 주세요.");
+                createModal("오류", `단어 다시 로드 실패: ${error.message}`);
             } finally {
                 showLoading(false);
             }
@@ -1210,6 +1128,69 @@
         nextRoundBtn.addEventListener('click', startNextRound);
         reloadBtn.addEventListener('click', confirmReloadWords);
         aiQuestionBtn.addEventListener('click', askAIQuestion);
+        
+        // New event listener for the word list button
+        document.getElementById('word-list-button').addEventListener('click', async () => {
+            showLoading(true);
+            try {
+                const response = await fetch('/list_wordbooks');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                const wordbookList = data.wordbooks;
+                
+                let wordbookListContent = '<p>불러올 워드북이 없습니다.</p>';
+                if (wordbookList && wordbookList.length > 0) {
+                    wordbookListContent = wordbookList.map(name => `
+                        <button class="wordbook-item btn btn-blue text-sm px-3 py-1 text-center flex-grow-0 flex-shrink-0" data-name="${name}">${name}</button>
+                    `).join('');
+                }
+                
+                createLLMModal("워드북 목록", wordbookListContent, [{ id: 'close-word-list-btn', text: '닫기', className: 'btn-blue', onClick: () => document.getElementById('modal').remove() }]);
+                
+                // Add event listeners for new wordbook buttons
+                document.querySelectorAll('.wordbook-item').forEach(button => {
+                    button.addEventListener('click', async (event) => {
+                        const wordbookName = event.target.dataset.name;
+                        console.log('Selected wordbook:', wordbookName);
+                        document.getElementById('modal').remove(); // Close wordbook list modal
+                        
+                        showLoading(true);
+                        try {
+                            const response = await fetch(`/words_json?title=${encodeURIComponent(wordbookName)}`);
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            const data = await response.json();
+                            words = data; // Update global words variable
+                            
+                            // Reset quiz state
+                            shuffledWords = [];
+                            currentQuestionIndex = 0;
+                            score = 0;
+                            incorrectWords = [];
+                            usedWords = [];
+                            allWords = [];
+                            
+                            startQuiz(wordbookName); // This will re-parse 'words' and start a new quiz
+                            createModal("워드북 로드 완료", `"${wordbookName}" 워드북을 성공적으로 로드했습니다! (총 ${allWords.length}개 단어)`);
+                        } catch (error) {
+                            console.error('Failed to load selected wordbook:', error);
+                            createModal("오류", `워드북 "${wordbookName}"을(를) 불러오는데 실패했습니다.`);
+                        } finally {
+                            showLoading(false);
+                        }
+                    });
+                });
+            } catch (error) {
+                console.error('Failed to load wordbooks:', error);
+                createModal("오류", "워드북 목록을 불러오는데 실패했습니다. 페이지를 새로고침해 주세요.");
+            } finally {
+                showLoading(false);
+            }
+        });
+        
         answerInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 if (answerInput.disabled) {
@@ -1227,16 +1208,13 @@
         });
 
         // Save API key to localStorage
-        saveKeyBtn.addEventListener('click', () => {
-            apiKey = apiKeyInput.value.trim();
-            localStorage.setItem('gemini-api-key', apiKey);
-            createModal("키 저장 완료", "Gemini API 키가 성공적으로 저장되었습니다.");
-        });
+        // This section is removed as per the edit hint.
         
         document.addEventListener('DOMContentLoaded', async () => {
             // Initialize button states
             nextRoundBtn.style.display = 'block';
-            await startQuiz();
+            const defaultWordbookTitle = '까먹은 단어';
+            await startQuiz(defaultWordbookTitle); // Pass default title to startQuiz
         });
 
     </script>

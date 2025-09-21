@@ -22,7 +22,7 @@ wheels/
 *.egg
 
 # Virtual Environment
-venv/
+.venv/
 ENV/
 
 # IDE
@@ -64,3 +64,6 @@ downloaded_images/
 test_*
 copy_to_gcs.sh
 words*.txt
+
+/test
+.cursor
