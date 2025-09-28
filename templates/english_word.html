@@ -65,8 +65,17 @@
             background-color: #f3f4f6;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: end; /* Changed from center to end */
+            min-height: auto; /* Changed from 100vh to auto */
+        }
+        .full-height-container { /* New container for layout */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; /* Align content to the bottom */
             min-height: 100vh;
+            flex-grow: 1;
+            width: 100%;
+            align-items: center; /* Keep quiz container centered horizontally */
         }
         .container {
             width: 100%;
@@ -192,69 +201,71 @@
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div id="quiz-container" class="container">
-        <button id="word-list-button" class="absolute top-4 left-4 bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm font-semibold shadow hover:bg-gray-300 transition-colors duration-200">단어목록</button>
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">단어 퀴즈</h1>
-        
-        <!-- Loading overlay -->
-        <div id="loading-overlay" class="loading-overlay" style="display: none;">
-            <div class="loading-spinner"></div>
-        </div>
+    <div class="full-height-container">
+        <div id="quiz-container" class="container">
+            <button id="word-list-button" class="absolute top-4 left-4 bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm font-semibold shadow hover:bg-gray-300 transition-colors duration-200">단어목록</button>
+            <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">단어 퀴즈</h1>
+            
+            <!-- Loading overlay -->
+            <div id="loading-overlay" class="loading-overlay" style="display: none;">
+                <div class="loading-spinner"></div>
+            </div>
 
-        <!-- Quiz Interface -->
-        <div id="quiz-interface" class="flex flex-col items-center">
-            <div id="progress" class="text-lg text-gray-600 mb-4 font-semibold"></div>
-            <div id="question-box" class="w-full text-center p-8 bg-gray-50 border border-gray-200 rounded-xl mb-6 shadow-inner">
-                <div id="word" class="font-extrabold text-blue-600 tracking-wide mb-4 animate-pulse" style="font-size: clamp(1rem, 4vw, 3rem); word-break: break-word; overflow-wrap: break-word;">단어</div>
-                <div id="pronunciation" class="text-sm text-gray-500 font-medium"></div>
-            </div>
-            <div class="flex gap-3 mb-4">
-                <input type="text" id="answer-input" class="flex-1 focus:ring-2 focus:ring-blue-500" placeholder="한국어 뜻을 입력하세요..." autocomplete="off" />
-                <button id="voice-input-btn" class="btn btn-blue px-4 py-3 flex items-center justify-center" title="음성으로 답변하기">
-                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
-                    </svg>
-                </button>
-            </div>
-            
-            <div class="flex flex-wrap gap-2">
-                <button id="show-answer-btn" class="btn btn-answer text-sm px-4 py-2 flex-[2] min-w-0">정답 보기</button>
-                <button id="correct-btn" class="btn btn-green text-sm px-3 py-2 flex-1 min-w-0">맞음</button>
-                <button id="submit-btn" class="btn btn-blue text-sm px-4 py-2 flex-[2] min-w-0">제출</button>
-                <button id="similar-btn" class="btn btn-hint text-sm px-4 py-2 flex-[2] min-w-0" style="display: none;">예문</button>
-                <button id="next-btn" class="btn btn-green text-xl px-8 py-4 flex-[3] min-w-0 font-bold" style="display: none;">다음</button>
-            </div>
-            
-            <div class="flex justify-between gap-2 mt-3">
-                <!-- Left side buttons -->
-                <div class="flex gap-2">
-                    <button id="next-round-btn" class="btn btn-blue text-sm px-3 py-2">다음 라운드</button>
-                    <button id="reload-btn" class="btn btn-blue text-sm px-3 py-2">다시 로드</button>
+            <!-- Quiz Interface -->
+            <div id="quiz-interface" class="flex flex-col items-center">
+                <div id="progress" class="text-lg text-gray-600 mb-4 font-semibold"></div>
+                <div id="question-box" class="w-full text-center p-8 bg-gray-50 border border-gray-200 rounded-xl mb-6 shadow-inner">
+                    <div id="word" class="font-extrabold text-blue-600 tracking-wide mb-4 animate-pulse" style="font-size: clamp(1rem, 6vw, 6rem); word-break: break-word; overflow-wrap: break-word;">단어</div>
+                    <div id="pronunciation" class="text-sm text-gray-500 font-medium"></div>
                 </div>
-                <!-- Right side buttons -->
-                <div class="flex gap-2">
-                    <button id="hint-btn" class="btn btn-hint text-sm px-3 py-2">힌트</button>
-                    <button id="pronunciation-btn" class="btn btn-blue text-sm px-3 py-2">발음</button>
+                <div class="flex gap-3 mb-4">
+                    <input type="text" id="answer-input" class="flex-1 focus:ring-2 focus:ring-blue-500" placeholder="한국어 뜻을 입력하세요..." autocomplete="off" />
+                    <button id="voice-input-btn" class="btn btn-blue px-4 py-3 flex items-center justify-center" title="음성으로 답변하기">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"></path>
+                        </svg>
+                    </button>
                 </div>
-            </div>
-            
-            <!-- Result and Hint Display Area -->
-            <div id="result-and-hint-area" class="mt-6 w-full p-4 rounded-lg text-center" style="min-height: 100px;">
-                <div id="result" class="w-full p-4 rounded-lg text-center" style="display: none;">
-                    <div id="result-message" class="font-bold text-lg mb-2"></div>
-                    <div id="similarity-score" class="text-sm font-medium"></div>
-                    <div id="correct-answer" class="text-sm text-gray-700 mt-2"></div>
+                
+                <div class="flex flex-wrap gap-2">
+                    <button id="correct-btn" class="btn btn-green text-sm px-3 py-2 flex-1 min-w-0">맞음</button>
+                    <button id="show-answer-btn" class="btn btn-answer text-sm px-4 py-2 flex-[2] min-w-0">정답 보기</button>
+                    <button id="submit-btn" class="btn btn-blue text-sm px-4 py-2 flex-[2] min-w-0">제출</button>
+                    <button id="similar-btn" class="btn btn-hint text-sm px-4 py-2 flex-[2] min-w-0" style="display: none;">예문</button>
+                    <button id="next-btn" class="btn btn-green text-xl px-8 py-4 flex-[3] min-w-0 font-bold" style="display: none;">다음</button>
                 </div>
-                <div id="hint-display" class="w-full p-4 rounded-lg bg-yellow-50 text-yellow-800 font-medium" style="display: none;"></div>
-            </div>
-            
-            <!-- AI Question Input Area -->
-            <div id="ai-question-area" class="mt-4 w-full" style="display: none;">
-                <div class="flex gap-2 mb-2">
-                    <input type="text" id="ai-question-input" class="flex-1 p-2 border border-gray-300 rounded-lg text-sm" placeholder="단어에 대해 궁금한 것을 질문해보세요..." autocomplete="off" />
-                    <button id="ai-question-btn" class="btn btn-blue px-4 py-2 text-sm">질문</button>
+                
+                <div class="flex justify-between gap-2 mt-3">
+                    <!-- Left side buttons -->
+                    <div class="flex gap-2">
+                        <button id="next-round-btn" class="btn btn-blue text-sm px-3 py-2">다음 라운드</button>
+                        <button id="reload-btn" class="btn btn-blue text-sm px-3 py-2">다시 로드</button>
+                    </div>
+                    <!-- Right side buttons -->
+                    <div class="flex gap-2">
+                        <button id="hint-btn" class="btn btn-hint text-sm px-3 py-2">힌트</button>
+                        <button id="pronunciation-btn" class="btn btn-blue text-sm px-3 py-2">발음</button>
+                    </div>
                 </div>
-                <div id="ai-answer-display" class="w-full p-4 rounded-lg bg-blue-50 text-blue-800 font-medium prose prose-sm max-w-none" style="display: none;"></div>
+                
+                <!-- Result and Hint Display Area -->
+                <div id="result-and-hint-area" class="mt-6 w-full p-4 rounded-lg text-center" style="min-height: 100px;">
+                    <div id="result" class="w-full p-4 rounded-lg text-center" style="display: none;">
+                        <div id="result-message" class="font-bold text-lg mb-2"></div>
+                        <div id="similarity-score" class="text-sm font-medium"></div>
+                        <div id="correct-answer" class="text-sm text-gray-700 mt-2"></div>
+                    </div>
+                    <div id="hint-display" class="w-full p-4 rounded-lg bg-yellow-50 text-yellow-800 font-medium" style="display: none;"></div>
+                </div>
+                
+                <!-- AI Question Input Area -->
+                <div id="ai-question-area" class="mt-4 w-full" style="display: none;">
+                    <div class="flex gap-2 mb-2">
+                        <input type="text" id="ai-question-input" class="flex-1 p-2 border border-gray-300 rounded-lg text-sm" placeholder="단어에 대해 궁금한 것을 질문해보세요..." autocomplete="off" />
+                        <button id="ai-question-btn" class="btn btn-blue px-4 py-2 text-sm">질문</button>
+                    </div>
+                    <div id="ai-answer-display" class="w-full p-4 rounded-lg bg-blue-50 text-blue-800 font-medium prose prose-sm max-w-none" style="display: none;"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -461,10 +472,25 @@
                     const koreanContent = (wordEntry.korean && Array.isArray(wordEntry.korean[0]) && wordEntry.korean[0].length > 0) ? wordEntry.korean[0][0] : 'N/A';
                     console.log(`DEBUG: wordEntry ${index} - English: "${englishContent}", Korean: "${koreanContent}"`);
                     
-                    if (wordEntry.english && wordEntry.english.length > 0 && wordEntry.korean && Array.isArray(wordEntry.korean[0]) && wordEntry.korean[0].length > 0) {
+                    if (wordEntry.english && wordEntry.english.length > 0 && wordEntry.korean) {
+                        const formattedKoreanMeanings = wordEntry.korean.map(meaningArray => {
+                            if (meaningArray && meaningArray.length > 0) {
+                                let meaning = meaningArray[0].trim();
+                                const partOfSpeechMatch = meaning.match(/^(동사|명사|형용사|부사|관형사|감탄사|조사|대명사|수사|접속사)(?:,\\s*(동사|명사|형용사|부사|관형사|감탄사|조사|대명사|수사|접속사))*\s*(.*)/);
+                                if (partOfSpeechMatch) {
+                                    const partOfSpeech = partOfSpeechMatch[1] + (partOfSpeechMatch[2] ? `, ${partOfSpeechMatch[2]}` : ''); // 첫 번째와 두 번째 품사를 결합
+                                    const actualMeaning = partOfSpeechMatch[3].replace(/\\[.*?\\]/g, '').replace(/\\(.*?\\)|\\.{3}/g, '').trim();
+                                    return `(${partOfSpeech}) ${actualMeaning}`;
+                                } else {
+                                    return meaning.replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim();
+                                }
+                            }
+                            return '';
+                        }).filter(Boolean).join(' / '); // 빈 문자열 제거 후 슬래시로 연결
+
                         wordPairs.push({
                             english: removeDiacritics(wordEntry.english[0].trim()),
-                            korean: wordEntry.korean[0][0].trim().replace(/\[.*?\]/g, '').replace(/\(.*?\)|\.{3}/g, '').trim()
+                            korean: formattedKoreanMeanings
                         });
                     } else {
                         console.warn(`WARN: Skipping wordEntry ${index} due to missing English or Korean content or invalid Korean format:`, wordEntry);
@@ -961,7 +987,7 @@
                 speechSynthesis.speak(utterance);
                 
                 // Show feedback
-                createModal("발음 재생", `"${wordToSpeak}"의 발음을 재생합니다.`);
+                // createModal("발음 재생", `"${wordToSpeak}"의 발음을 재생합니다.`);
             } else {
                 createModal("지원되지 않음", "이 브라우저에서는 음성 재생을 지원하지 않습니다.");
             }
@@ -1165,6 +1191,9 @@
                             const data = await response.json();
                             words = data; // Update global words variable
                             
+                            // Save selected wordbook to localStorage
+                            localStorage.setItem('lastSelectedWordbook', wordbookName);
+
                             // Reset quiz state
                             shuffledWords = [];
                             currentQuestionIndex = 0;
@@ -1214,7 +1243,9 @@
             // Initialize button states
             nextRoundBtn.style.display = 'block';
             const defaultWordbookTitle = '까먹은 단어';
-            await startQuiz(defaultWordbookTitle); // Pass default title to startQuiz
+            const lastSelectedWordbook = localStorage.getItem('lastSelectedWordbook');
+            const initialWordbook = lastSelectedWordbook || defaultWordbookTitle;
+            await startQuiz(initialWordbook); // Pass initial title to startQuiz
         });
 
     </script>
