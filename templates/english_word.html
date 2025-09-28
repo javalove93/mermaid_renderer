@@ -846,38 +846,9 @@
         async function endRound() {
             const totalWordsInRound = shuffledWords.length;
             const correctCount = totalWordsInRound - incorrectWords.length;
-            
-            let llmMessage = "";
+            const incorrectCount = incorrectWords.length;
 
-            showLoading(true);
-
-            try {
-                const incorrectWordsEnglish = incorrectWords.map(w => w.english);
-
-                const response = await fetch('/generate_round_summary', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        total_words_in_round: totalWordsInRound,
-                        correct_count: correctCount,
-                        incorrect_words_list: incorrectWordsEnglish,
-                    }),
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error('Backend API 호출 실패:', response.status, response.statusText, errorData);
-                    throw new Error(`API 호출 실패: ${response.status} ${response.statusText}`);
-                }
-                
-                const result = await response.json();
-                llmMessage = result.llm_message;
-            } catch (error) {
-                console.error("Backend API 호출 중 오류 발생:", error);
-                llmMessage = "죄송합니다. 메시지를 생성하는 데 문제가 발생했습니다.";
-            } finally {
-                showLoading(false);
-            }
+            const message = `총 ${totalWordsInRound}개의 단어 중\n맞은 단어: ${correctCount}개\n틀린 단어: ${incorrectCount}개`;
             
             let buttons;
             if (incorrectWords.length > 0) {
@@ -900,7 +871,7 @@
                 ];
             }
 
-            createLLMModal("✨ 라운드 결과 ✨", llmMessage, buttons);
+            createLLMModal("✨ 라운드 결과 ✨", message, buttons);
         }
 
         function endQuiz() {
