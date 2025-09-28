@@ -25,7 +25,7 @@ if [ ! -f "app.py" ]; then
 fi
 
 # Set default port if not set
-export PORT=${PORT:-5001}
+export PORT=${PORT:-5002}
 
 # Run the Flask application in debug mode
 export FLASK_DEBUG=1
